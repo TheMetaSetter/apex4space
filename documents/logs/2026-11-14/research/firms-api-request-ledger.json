@@ -1,0 +1,157 @@
+{
+  "limit": 5,
+  "requests": [
+    {
+      "number": 1,
+      "purpose": "status",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 96,
+      "transaction_limit": 5000,
+      "current_transactions": 0,
+      "transaction_interval": "10 minutes",
+      "elapsed_seconds": 1.406
+    },
+    {
+      "number": 2,
+      "purpose": "availability",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 442,
+      "columns": [
+        "data_id",
+        "min_date",
+        "max_date"
+      ],
+      "sources": [
+        {
+          "source": "MODIS_NRT",
+          "min_date": "2026-09-01",
+          "max_date": "2026-11-13"
+        },
+        {
+          "source": "MODIS_SP",
+          "min_date": "2000-11-01",
+          "max_date": "2026-08-31"
+        },
+        {
+          "source": "VIIRS_NOAA20_NRT",
+          "min_date": "2026-08-01",
+          "max_date": "2026-11-13"
+        },
+        {
+          "source": "VIIRS_NOAA20_SP",
+          "min_date": "2018-04-01",
+          "max_date": "2026-07-31"
+        },
+        {
+          "source": "VIIRS_NOAA21_NRT",
+          "min_date": "2024-01-17",
+          "max_date": "2026-11-13"
+        },
+        {
+          "source": "VIIRS_NOAA21_SP",
+          "min_date": "2023-03-01",
+          "max_date": "2026-07-31"
+        },
+        {
+          "source": "VIIRS_SNPP_NRT",
+          "min_date": "2026-08-01",
+          "max_date": "2026-11-02"
+        },
+        {
+          "source": "VIIRS_SNPP_SP",
+          "min_date": "2012-01-20",
+          "max_date": "2026-07-31"
+        }
+      ],
+      "elapsed_seconds": 2.226
+    },
+    {
+      "number": 3,
+      "purpose": "sample",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 122,
+      "source": "VIIRS_SNPP_NRT",
+      "date": "2026-09-01",
+      "bbox": [
+        106,
+        10,
+        107,
+        11
+      ],
+      "columns": [
+        "latitude",
+        "longitude",
+        "bright_ti4",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_ti5",
+        "frp",
+        "daynight"
+      ],
+      "rows": 0,
+      "sha256": "2b11a44667d05367ecf77651b95fd3d34c545c7ec154856094b91245e41ae697",
+      "versions": [],
+      "satellites": [],
+      "file": "time-series-api/data/staging/VIIRS_SNPP_NRT_2026-09-01.csv",
+      "elapsed_seconds": 1.363
+    },
+    {
+      "number": 4,
+      "purpose": "sample_modis",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 127,
+      "source": "MODIS_SP",
+      "date": "2026-03-01",
+      "bbox": [
+        104,
+        20,
+        105,
+        21
+      ],
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight",
+        "type"
+      ],
+      "rows": 0,
+      "sha256": "b335277b53c6ffb4476f76ef457d775527f70fe5287310a46db6301d06266520",
+      "versions": [],
+      "satellites": [],
+      "file": "time-series-api/data/staging/MODIS_SP_2026-03-01.csv",
+      "elapsed_seconds": 2.495
+    },
+    {
+      "number": 5,
+      "purpose": "status_after",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 96,
+      "transaction_limit": 5000,
+      "current_transactions": 9,
+      "transaction_interval": "10 minutes",
+      "elapsed_seconds": 1.179
+    }
+  ]
+}
