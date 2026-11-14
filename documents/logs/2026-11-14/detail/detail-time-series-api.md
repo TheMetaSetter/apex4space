@@ -1,5 +1,9 @@
 # Detailed implementation plan: time-series-api
 
+Current responder scope: see the [new detailed plan](detail-responder-hotspot-mvp.md).
+The old boxes below remain the history and deferred science checklist.
+Implementation is not resumed by the new planning request.
+
 Date: 2026-11-14. Status: engineering can start; data and science gates remain.
 Branch at planning: `anhkhoi-dev`; HEAD `c3bf05efa0f0d0ec7e8be76d853a1e0ea8a62e66`.
 No implementation, dependency install, provider download, or runtime test ran
@@ -39,11 +43,12 @@ list of separately named tests below; preserve the checks where practical.
 The user authorized reading `FIRMS_MAP_KEY` from the repository `.env` for the
 download step. The process environment takes priority. Keep the key private.
 NASA's limit remains 5,000 transactions per 600 seconds; pause at 4,000.
-The user permits at most five FIRMS API requests in total for this work.
-Count budget, availability, and data requests. One request may cost more than
-one transaction. Record the request count and transaction counter without
-recording the key. The five-request limit has been reached; see the
-[schema check](../research/firms-api-schema-check.md). Reuse the saved samples.
+The user first allowed five FIRMS API requests, then approved two more resume
+checks. All seven are recorded in the [schema check](../research/firms-api-schema-check.md).
+The last two checked status and availability only; the command reused the
+saved sample and made no data request. The transaction delta is unknown. Do
+not make more requests without new approval. Count both requests and provider
+transactions. Never record the key.
 T1's serving test precedes T5's full factory. A temporary factory therefore
 checks for a selected release and refuses all other startup until T5 adds the
 routes and security checks. Its selected-release guard has a test.
@@ -317,8 +322,8 @@ and parse_arguments/main in each script, exactly as interface §§4, 8.
 - [x] Implement parse_arguments in fetch_data.py, then its main; read FIRMS_MAP_KEY from the environment or repository .env, never an argument.
 - [x] Implement parse_arguments in prepare_data.py, then its main for source-only preparation and publication; read saved inputs through repeatable iterators.
 - [x] Implement parse_arguments in check_results.py, then its main for saved-release integrity/scope checks; never overwrite a published validation report.
-- [x] Add tests for command exit codes, no import side effects, repeated-window resume, independent consumed generators, and failed preparation without a visible release.
-- [x] Run source/storage tests and each CLI's argument tests; inspect parser defaults directly. `.venv/bin/python -m pytest time-series-api/tests -q` passed all 30 tests; compileall and `git diff --check` also passed. The test run reports one upstream Starlette/httpx deprecation warning.
+- [x] Add tests for command exit codes, no import side effects, repeated-window resume, independent consumed generators, and failed preparation without a visible release. The prepare command test now starts without a database and verifies that offline preparation creates it.
+- [x] Run source/storage tests and each CLI's argument tests; inspect parser defaults directly. `.venv/bin/python -m pytest time-series-api/tests -q` passed all 30 tests; compileall, the 499-line source-file limit, and `git diff --check` passed. The test run reports one upstream Starlette/httpx deprecation warning.
 - [x] Document the exact working commands, intentional defaults, and explicit overrides in README.
 
 Source-only reports list import/integrity checks and unresolved science. They
@@ -331,25 +336,81 @@ partial files. **Complete when:** a mocked fetch → prepare → check cycle pas
 **Prerequisites:** working P2/T7; private MAP_KEY supplied to the runtime;
 actual provider availability/status. Missing key or network stops this task.
 
-- [x] Read current official provider endpoint/availability/transaction rules; record the source IDs and access date without the key. NASA FIRMS area, availability, and tutorial pages were reviewed; the 2026-11-14 availability response listed `MODIS_NRT` and `VIIRS_SNPP_NRT` for the candidate September dates. The request ledger records five requests and no key.
-- [ ] Check whether the candidate rectangle and shared September window are available for Aqua–Suomi. The saved VIIRS request for the candidate rectangle/date returned a valid header with zero rows. The saved availability response shows date overlap, but the MODIS sample used another rectangle/date. The five-request limit is reached, so box-level shared data availability is unresolved.
-- [ ] If shared dates are unavailable, choose one currently available source-only platform and at most two UTC days; record the change and missing science inputs. Do not silently switch a harmonized method.
-- [ ] Write the concrete rectangle/date/source window into settings and estimate its bytes before downloading.
-- [ ] Fetch only this one combination with fetch_data.py; record provider cost, rows, bytes, time, and highest memory use.
-- [ ] Check schema, source/platform identity, dates, hashes, and original sample rows before preparation.
-- [ ] Prepare a uniquely named source-only release using prepare_data.py.
-- [ ] Check its manifest/report with check_results.py.
-- [ ] Set selected_release_id to that checked release and start the local API with the serving recipe.
-- [ ] Run one rectangle query, read all its point pages, and download the same raw selection.
-- [ ] Compare row identities, dates, units, and scientific fields across screen/download; record matching results and unknown coverage honestly.
-- [ ] Check disk totals against both budgets; stop serving before any release change.
-- [ ] Record whether this one combination passed the whole path; do not expand if it failed.
+- [x] Read current official provider endpoint/availability/transaction rules; record the source IDs and access date without the key. NASA FIRMS area, availability, and tutorial pages were reviewed; the 2026-11-14 availability response listed `MODIS_NRT` and `VIIRS_SNPP_NRT` for the candidate September dates. The request ledger records five exploration requests and two later user-approved resume checks; no key is recorded.
+- [x] Check whether the candidate rectangle and shared September window are available for Aqua–Suomi. The saved availability response shows shared dates. The VIIRS candidate-area sample is a valid empty response; the MODIS sample used another rectangle/date, so area-level overlap is unknown. Use the source-only fallback and make no harmonized claim.
+- [x] If shared dates are unavailable, choose one currently available source-only platform and at most two UTC days; record the change and missing science inputs. Used the saved one-day `VIIRS_SNPP_NRT` response because an Aqua–Suomi area pair was not verified. No harmonized method was changed.
+- [x] Write the concrete rectangle/date/source window into settings and estimate its bytes before downloading. Settings now use `[106,10,107,11]`, `2026-09-01` to `2026-09-02` (end excluded), and `VIIRS_SNPP_NRT`; the saved response is 122 bytes.
+- [x] Fetch only this one combination with fetch_data.py; record provider cost, rows, bytes, time, and highest memory use. The command resumed the saved window with retries disabled. It made two HTTP requests (status and availability), then reused the 122-byte, zero-row file; it made no data request. The run took 2.48 seconds and used at most 49,430,528 bytes of resident memory. The exact transaction delta was not measured; the key may be shared, and no extra status request was made.
+- [x] Check schema, source/platform identity, dates, hashes, and original sample rows before preparation. The header, requested source ID/date/rectangle, and SHA-256 match the ledger. The valid response has no rows, so no row-level platform or value check is possible.
+- [x] Prepare a uniquely named source-only release using prepare_data.py. `responder-viirs-empty-2026-09-01-v1` contains one source file and zero observations; it advertises no metrics.
+- [x] Check its manifest/report with check_results.py. The report passed and checked zero rows.
+- [x] Set selected_release_id to that checked release and start the local API with the serving recipe. Loopback health and readiness both returned 200.
+- [x] Run one rectangle query, read all its point pages, and download the same raw selection. The point response has no features, no next cursor, and `has_more=false`; the CSV export has a header and zero rows.
+- [x] Compare row identities, dates, units, and scientific fields across screen/download; record matching results and unknown coverage honestly. Both outputs contain zero rows, so there are no row values to compare. The release has unknown coverage and no analysis metrics; an analysis request returned `METRIC_NOT_AVAILABLE`.
+- [x] Check disk totals against both budgets; stop serving before any release change. The data tree was 6,153,527 bytes; staging files used 249 bytes. The loopback server is stopped.
+- [x] Record whether this one combination passed the whole path; do not expand if it failed. The source-only path passed fetch resume, preparation, integrity, map paging, and matching export. It has no points, metrics, or coverage. This is a valid empty source response, not a clear-sky result. Do not expand until the web map and scientific inputs are ready.
 
 If there are zero detections, retain the valid empty source response and
 unknown coverage. It is not a tested clear-sky zero. A different source/date
 pilot is a recorded next attempt, not evidence that the failed one passed.
 **Complete when:** exactly one real combination passes or a concrete external
 block is recorded. A blocked attempt does not complete P3.
+
+### T8b. Prepare a non-empty map dataset from the saved local CSV
+
+This step follows T8 and comes before the native-product science gate. The
+team chose a map-ready FIRMS detection dataset first, from saved local or Drive
+CSV files. Do not make another FIRMS request. Use the checked local VIIRS
+sample because it is already present and small enough for the configured
+100,000-row limit. Keep its one observed date, `2023-07-12`, and its observed
+coordinate extent `[-164.05351, -77.52732, 178.79655, 71.09212]`. This creates
+a historical map sample, not a complete global dataset or current response
+feed.
+
+The sample has 74,605 rows, all from Suomi-NPP VIIRS. Its row versions are
+`2.0NRT` and `2.0URT`; retain both values. The sample has 2,325 rows inside
+the rough South America rectangle, but it is not filtered to that rectangle.
+Do not claim complete spatial coverage. Retain each raw FRP value in MW. The
+release has no coverage records, daily cell FRP, comparison method, or
+analysis metrics. The API may read this saved release later for point-map
+queries; do not call the API in this task.
+
+**Files:** `scripts/prepare_data.py`, its existing CLI test in
+`tests/test_sources.py`, `config/settings.json`, generated staging/release
+files, `README.md`, and this research note. Reuse existing release storage and
+the checked source reader. Keep the total suite at or below 30 test cases.
+
+- [x] Confirm the target: map-ready FIRMS detections first; saved local/Drive
+  CSV inputs; no daily FRP or coverage claim in this dataset.
+- [x] Check the local sample date, row count, platform, mixed versions, hash,
+  coordinate extent, and South America rectangle count. Evidence is recorded in
+  `research/firms-api-schema-check.md` and `research/research-daily-cell-frp.md`.
+- [ ] Add a failing assertion to the existing preparation CLI test for an
+  explicit local CSV input. Do not add a new test case.
+- [ ] Run that test and record its expected initial failure.
+- [ ] Add the smallest safe `--input-csv` path to `prepare_data.py`. Accept
+  only a regular file under `data/samples/`; reject symlinks, oversize files,
+  changed hashes, wrong source/platform/version, multiple dates, and rows
+  outside the configured source date window.
+- [ ] Record local sample origin in release provenance. Do not label the
+  sample as a new NASA download.
+- [ ] Prepare a source-only release with all checked rows, original fields,
+  source row IDs, source versions, and raw FRP values intact. Keep metrics and
+  coverage unavailable.
+- [ ] Re-run the same test and the existing source-preparation checks. Keep
+  the full suite at or below 30 cases.
+- [ ] Run `check_results.py` on the new release. Require its source hash and
+  every retained row to match the input file.
+- [ ] Record release ID, date, row counts, bytes, hash, unknown coverage, and
+  old-data status in README and the research note. Keep the existing empty
+  2026 API response release unchanged.
+- [ ] Set `selected_release_id` to the non-empty map release only after the
+  integrity check passes. Do not start the API or make a query here.
+
+Do not label this one-day VIIRS sample as a live responder feed, MODIS–VIIRS
+comparison, complete South America dataset, clear-sky result, or daily cell
+FRP. **Complete when:** the checked source-only map release has real points
+and can be selected by the API in a later step.
 
 ## P4 — Scientific checks before harmonized claims
 
@@ -365,10 +426,10 @@ tests/test_harmonization.py, config/settings.json, canonical spec science notes.
 **Consumes:** T8 pilot and spec §7.2. **Produces:** real OpportunityRecord inputs,
 reviewed source mappings, fixed splits, and declared method settings.
 
-- [ ] Locate matching Aqua MYD14/MYD35 and Suomi VNP14IMG/VNP03IMG inputs for a small shared region/time; record missing products before writing a reader.
-- [ ] Check product versions, pass/granule IDs, units, masks, location fields, and file sizes against official product docs.
-- [ ] Resolve the recorded NOAA-21/date and MODIS version conflicts before using those data; do not include unresolved sources in a claim.
-- [ ] Choose the minimum reader dependencies for the actual file formats and record their license/version/input need.
+- [x] Locate matching Aqua MYD14/MYD35 and Suomi VNP14IMG/VNP03IMG inputs for a small shared region/time; record missing products before writing a reader. The shared Drive folder was searched. It has MODIS and Suomi-NPP FIRMS CSV exports and large NRT/archive CSVs, but no native MYD14, MYD35, VNP14IMG, or VNP03IMG files. Native matched inputs are missing; no reader was written.
+- [ ] Check product versions, pass/granule IDs, units, masks, location fields, and file sizes against official product docs. The docs define expected file formats, acquisition IDs, FRP units, location fields, and QA masks. Their sample size figures are not measurements of our files. No native inputs exist to verify actual versions, paired IDs, values, masks, or sizes. See `research-daily-cell-frp.md`; this item remains open until those files are checked.
+- [x] Resolve the recorded NOAA-21/date and MODIS version conflicts before using those data; do not include unresolved sources in a claim. The notebook shows NOAA-21 rows dated March 2023, while the checked FIRMS availability page starts NOAA-21 coverage on 2024-01-17. Its saved MODIS rows include version values `6.03` and `61.03`, with no verified collection mapping. No matching native pair is available. Exclude these records from harmonization claims until product identity and dates are checked.
+- [x] Choose the minimum reader dependencies for the actual file formats and record their license/version/input need. Based on NASA's product docs, select `pyhdf==0.11.7` (MIT) for MODIS HDF4/HDF-EOS fields and `netCDF4==1.7.5.1.post1` (MIT) for VIIRS NetCDF4/HDF5 fields. Both have wheels that match the current Python 3.13.5/macOS 26.6.2 arm64 environment. Do not install them until the actual sample files pass T9 item 2.
 - [ ] Freeze study areas, grid width `w` in km, equal-area projection, origin, cell ID and edge rules, pass schedule, quality rules, and train/tuning/final-test groups before fitting. Assign a record by its center; one boundary rule must place it in exactly one cell.
 - [ ] Define seasonal agreement as correlation of month-wise totals on the held-out set, with an explicit allowed loss and handling of constant series; write those values before the final test.
 - [ ] Freeze subgroup/pass-failure targets, count bias/MAE targets, and the reasons for them in science settings; if evidence does not support a target, report that gate as unresolved rather than running a final test.

@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "area_id": "south-america-pilot-rectangle",
+        "name": "South America pilot rectangle",
+        "version": "1"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-60, -15], [-59, -15], [-59, -14], [-60, -14], [-60, -15]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "area_id": "sample-africa",
+        "name": "Sample CSV test area",
+        "version": "1"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-10, -5], [40, -5], [40, 10], [-10, 10], [-10, -5]]]
+      }
+    }
+  ]
+}

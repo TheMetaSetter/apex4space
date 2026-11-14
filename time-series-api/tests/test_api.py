@@ -2,6 +2,7 @@
 
 import importlib
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,43 @@ def test_selection_geometry_keeps_input_and_closes_ring():
                          (106.0, 11.0), (106.0, 10.0)),),
     }
     assert bbox == (106.0, 10.0, 107.0, 11.0)
+    cells = importlib.import_module("app.cells")
+    query = cells.CellMapQuery.model_validate({
+        "release_id": "pilot-v1", "date": "2026-01-01", "bbox": [106, 10, 107, 11],
+    })
+    assert query.bbox == bbox and query.area_id is None
+    for invalid in (
+        {"release_id": "pilot-v1", "date": "2026-01-01"},
+        {"release_id": "pilot-v1", "date": "2026-01-01", "bbox": [106, 10, 107, 11], "area_id": "vn"},
+    ):
+        with pytest.raises(ValidationError):
+            cells.CellMapQuery.model_validate(invalid)
+    assert cells.DailyHotspotSummary.model_validate({
+        "release_id": "pilot-v1", "area_id": "test-area", "date": "2026-01-01",
+        "active_cell_count": 2, "hotspot_cell_ids": ["0:0", "1:0"], "status": "available",
+    }).active_cell_count == 2
+    with pytest.raises(ValidationError):
+        cells.DailyHotspotSummary.model_validate({
+            "release_id": "pilot-v1", "area_id": "test-area", "date": "2026-01-01",
+            "active_cell_count": 2, "hotspot_cell_ids": ["0:0"], "status": "available",
+        })
+    cell = cells.CellRecord(grid_version="grid-v1", cell_id="0:0",
+        center_longitude=1.0, center_latitude=1.0,
+        geometry={"type": "Polygon", "coordinates": (((0, 0), (2, 0), (2, 2), (0, 2), (0, 0)),)})
+    summary = cells.DailyHotspotSummary(release_id="pilot-v1", area_id="test-area",
+        date=date(2026, 1, 1), active_cell_count=1, hotspot_cell_ids=("0:0",), status="available")
+    map_query = cells.CellMapQuery(release_id="pilot-v1", date=date(2026, 1, 1), bbox=(0, 0, 2, 2))
+    clipped = cells.make_cell_map(map_query, summary, (cell,), grid_version="grid-v1",
+        selection={"type": "Polygon", "coordinates": (((0.5, 0.5), (1.5, 0.5),
+            (1.5, 1.5), (0.5, 1.5), (0.5, 0.5)),)})
+    assert clipped.active_cell_count == 1
+    assert clipped.features[0].id == "0:0"
+    assert clipped.features[0].geometry["type"] == "Polygon"
+    excluded = cells.make_cell_map(map_query, summary, (cell,), grid_version="grid-v1",
+        selection={"type": "Polygon", "coordinates": (((0.5, 0.5), (1.5, 0.5),
+            (1.5, 1.5), (0.5, 1.5), (0.5, 0.5)),
+            ((0.9, 0.9), (1.1, 0.9), (1.1, 1.1), (0.9, 1.1), (0.9, 0.9)))})
+    assert excluded.active_cell_count == 0
 
 
 def test_settings_loads_independently_and_rejects_bad_limits(tmp_path):
@@ -127,7 +165,11 @@ def test_serving_rejects_unselected_release(tmp_path, monkeypatch):
     models = importlib.import_module("app.models")
     settings = models.load_settings
     project_settings = __import__("pathlib").Path(__file__).resolve().parents[1] / "config/settings.json"
-    monkeypatch.setattr(main, "load_settings", lambda path: settings(project_settings))
+    unselected = settings(project_settings)
+    unselected = unselected.model_copy(update={
+        "api": unselected.api.model_copy(update={"selected_release_id": None})
+    })
+    monkeypatch.setattr(main, "load_settings", lambda path: unselected)
     with pytest.raises(ValueError, match="release"):
         main.create_app(tmp_path / "settings.json")
     trusted = settings(project_settings)
@@ -185,6 +227,35 @@ def test_route_contracts(api_client, monkeypatch, tmp_path):
     assert "database_path" not in detail and "FIRMS_MAP_KEY" not in str(detail)
     assert api_client.get("/v1/metrics").status_code == 200
     _assert_openapi(api_client)
+    from app import storage
+
+    with monkeypatch.context() as patch:
+        def forbidden(*args, **kwargs):
+            raise AssertionError("map request tried to read source data")
+        patch.setattr(storage, "read_observations", forbidden)
+        patch.setattr("app.drive.list_drive_csvs", forbidden)
+        cell_map = api_client.post("/v1/hotspots/cells/query", json={
+            "release_id": "cell-fixture-v1", "date": "2024-03-01",
+            "area_id": "test-area",
+        })
+        assert cell_map.status_code == 200
+        assert cell_map.json()["active_cell_count"] == 1
+        assert cell_map.json()["features"][0]["id"] == "0:0"
+        bbox_map = api_client.post("/v1/hotspots/cells/query", json={
+            "release_id": "cell-fixture-v1", "date": "2024-03-01",
+            "bbox": [106, 10, 107, 11],
+        })
+        assert bbox_map.status_code == 200 and bbox_map.json()["active_cell_count"] == 1
+        outside = api_client.post("/v1/hotspots/cells/query", json={
+            "release_id": "cell-fixture-v1", "date": "2024-03-01",
+            "bbox": [0, 0, 1, 1],
+        })
+        assert outside.status_code == 422 and outside.json()["code"] == "AREA_NOT_PREPARED"
+        raw = api_client.post("/v1/hotspots/query", json={
+            "release_id": "cell-fixture-v1", "bbox": [106, 10, 107, 11],
+            "start_date": "2024-03-01", "end_date": "2024-03-02", "platforms": ["Aqua"],
+        })
+        assert raw.status_code == 409 and raw.json()["code"] == "UNSUPPORTED_DATASET"
     request = _api_request()
     analysis = api_client.post("/v1/analysis", json=request)
     assert analysis.status_code == 200 and analysis.json()["summary"]["value"] == 2
@@ -218,7 +289,7 @@ def _assert_openapi(client):
     saved_schema = json.loads((Path(__file__).parents[1] / "openapi.json").read_text())
     assert schema == saved_schema
     operations = {operation["operationId"] for path in schema["paths"].values() for operation in path.values()}
-    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "export_results"}
+    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "query_hotspot_cells", "export_results"}
     point = schema["components"]["schemas"]["PointGeometry"]
     assert point["properties"]["type"].get("const") == "Point"
     assert point["properties"]["coordinates"]["type"] == "array"

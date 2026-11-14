@@ -1,14 +1,17 @@
 # FIRMS API schema check
 
-Date: 2026-11-14. Five keyed FIRMS API requests were made, which is the
-user's limit for this work. The [request ledger](firms-api-request-ledger.json)
-contains the request results. It contains no key or access-bearing URL.
+Date: 2026-11-14. Five FIRMS API requests were used for schema exploration.
+The user later approved two more requests for saved-window resume checks. The
+[request ledger](firms-api-request-ledger.json) records all seven. It contains
+no key or access-bearing URL.
 
 The first status response reported 0 of 5,000 transactions used in a
 10-minute interval. The last reported 9. The key may be shared, so the change
-is not proof of the exact cost of each request. The limit and the planned
-pause at 4,000 remain in force. Do not make another API request under this
-five-request authorization.
+is not proof of the exact cost of each request. The limit and planned pause at
+4,000 remain in force. The two later requests checked status and availability
+before the CLI reused a saved file. There was no new fire-data request. The
+exact transaction change from those requests is unknown. Do not make another
+API request without new approval.
 
 The availability response had the columns `data_id`, `min_date`, and
 `max_date`. It reported MODIS NRT from 2026-09-01 through 2026-11-13 and
@@ -48,8 +51,10 @@ For this project, the user permits the implementation work to read
 Never print, copy, commit, or place the key in a URL, log, report, or command
 example. Check the provider's current transaction count before a request.
 The limit is 5,000 transactions per 10 minutes. Keep requests small and stop
-at the configured pause point. Five FIRMS API requests have already been
-used for this work; this run must make no more.
+at the configured pause point. Seven FIRMS API requests have already been
+used for this work; this run must make no more without new approval. The final
+two were approved resume checks, not data downloads. Their transaction change
+was not measured.
 
 The user also permits reading CSV files in Google Drive at
 `Shared with me / NASA Space Apps Challenge / Data`. Four NRT CSV files were

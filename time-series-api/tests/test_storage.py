@@ -75,7 +75,7 @@ def query(release_id, page_size=1):
                         platforms=("Aqua",), page_size=page_size)
 
 
-def test_storage_round_trip(candidate):
+def test_storage_round_trip(candidate, tmp_path):
     store = import_module("app.storage")
     settings, manifest, report, batch = candidate("release-a", "file-a")
     original = {"row": "1"}
@@ -135,6 +135,31 @@ def test_storage_round_trip(candidate):
     (settings.releases_path / "release-a" / "validation.json").write_text("{}")
     with pytest.raises(ValueError, match="match"):
         store.load_release(settings.database_path, "release-a")
+
+    cells = import_module("app.cells")
+    cell_store = tmp_path / "processed.sqlite3"
+    cell_settings = settings.model_copy(update={"database_path": cell_store})
+    cell = cells.CellRecord(grid_version="grid-v1", cell_id="0:0",
+        center_longitude=106.5, center_latitude=10.5,
+        geometry={"type": "Polygon", "coordinates": (((106, 10), (107, 10), (107, 11), (106, 11), (106, 10)),)})
+    summary = cells.DailyHotspotSummary(release_id="cell-v1", area_id="pilot",
+        date=date(2026, 1, 1), active_cell_count=1, hotspot_cell_ids=("0:0",), status="available")
+    manifest = cells.CellReleaseManifest(release_id="cell-v1", grid_version="grid-v1",
+        start_date=date(2026, 1, 1), end_date=date(2026, 1, 2),
+        grid={"grid_version": "grid-v1", "width_km": 10.0, "projection": "EPSG:8857",
+              "origin_x_m": 0.0, "origin_y_m": 0.0, "edge_rule": "floor_half_open"},
+        areas={"pilot": {"version": "1", "geometry": cell.geometry}}, sources=(),
+        code_version="test", catalog_sha256="0" * 64)
+    store.initialize_cell_database(cell_store)
+    table_names = {row[0] for row in sqlite3.connect(cell_store).execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+    assert table_names == {"hotspot_cell", "daily_hotspot_summary"}
+    store.publish_cell_release(cell_store, iter((cell,)), iter((summary,)), manifest, cell_settings)
+    assert store.read_cell_manifest(cell_settings.releases_path, "cell-v1").release_id == "cell-v1"
+    assert store.read_hotspot_summary(cell_store, "cell-v1", "pilot", date(2026, 1, 1)) == summary
+    assert store.read_hotspot_cells(cell_store, "grid-v1", ("0:0",)) == (cell,)
+    with pytest.raises(ValueError, match="missing"):
+        store.read_hotspot_cells(cell_store, "grid-v1", ("1:0",))
 
 
 def test_failed_publish_rolls_back(candidate, monkeypatch):

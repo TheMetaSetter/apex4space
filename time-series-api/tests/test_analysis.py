@@ -40,6 +40,21 @@ def daily(day, value):
 
 
 def test_missing_is_not_zero():
+    cells = import_module("app.cells")
+    shared_day_cells = frozenset({"A", "B"}) | frozenset({"B", "C"}) | frozenset({"A"})
+    days = {
+        date(2026, 1, 1): shared_day_cells,
+        date(2026, 1, 2): frozenset(),
+        date(2026, 1, 3): frozenset({"C"}),
+    }
+    summaries = cells.summarize_hotspots(days, release_id="r1", area_id="a1",
+        start_date=date(2026, 1, 1), end_date=date(2026, 1, 5),
+        day_states={date(2026, 1, 1): "available", date(2026, 1, 2): "available",
+                    date(2026, 1, 3): "partial", date(2026, 1, 4): "missing"})
+    assert summaries[0].active_cell_count == 3
+    assert summaries[1].active_cell_count == 0 and summaries[1].status == "observed_zero"
+    assert summaries[2].active_cell_count == 1 and summaries[2].status == "partial"
+    assert summaries[3].active_cell_count is None and summaries[3].hotspot_cell_ids is None
     analysis = import_module("app.analysis")
     query = AnalysisRequest(release_id="fixture", bbox=(106, 10, 107, 11),
         start_date=date(2024, 3, 1), end_date=date(2024, 3, 2),
@@ -135,6 +150,25 @@ def test_equal_historical_window():
 
 
 def test_tiny_selection_has_no_spatial_support():
+    cells = import_module("app.cells")
+    grid = cells.GridSettings(grid_version="pilot-10km-v1", width_km=10.0)
+    assigned = cells.assign_cell(-60, -15, grid)
+    rebuilt = cells.cell_from_id(assigned.cell_id, grid)
+    assert assigned.cell_id == rebuilt.cell_id
+    assert assigned.center_longitude == pytest.approx(rebuilt.center_longitude)
+    assert assigned.center_latitude == pytest.approx(rebuilt.center_latitude)
+    assert assigned.geometry == rebuilt.geometry
+    forward, reverse = cells._transformers(grid.projection)
+    edge_longitude, edge_latitude = reverse.transform(10_000, 10_000)
+    assert cells.assign_cell(edge_longitude, edge_latitude, grid).cell_id == "1:1"
+    negative_longitude, negative_latitude = reverse.transform(-1, -1)
+    assert cells.assign_cell(negative_longitude, negative_latitude, grid).cell_id == "-1:-1"
+    from shapely.geometry import shape
+    for longitude in (-179.999, 179.999):
+        seam_cell = cells.assign_cell(longitude, 0, grid)
+        seam_shape = shape(seam_cell.geometry)
+        assert seam_shape.is_valid
+        assert -180 <= seam_shape.bounds[0] <= seam_shape.bounds[2] <= 180
     analysis = import_module("app.analysis")
     query = AnalysisRequest(release_id="fixture", bbox=(106, 10, 106.1, 10.1),
         start_date=date(2024, 3, 1), end_date=date(2024, 3, 2),

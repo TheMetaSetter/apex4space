@@ -1,20 +1,297 @@
 {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Time-series API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "summary": "Health Live",
+        "operationId": "health_live",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Health Ready",
+        "operationId": "health_ready",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/releases": {
+      "get": {
+        "summary": "List Releases",
+        "operationId": "list_releases",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Releases"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/releases/{release_id}": {
+      "get": {
+        "summary": "Get Release",
+        "operationId": "get_release",
+        "parameters": [
+          {
+            "name": "release_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Release Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasePublicResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/metrics": {
+      "get": {
+        "summary": "List Metrics",
+        "operationId": "list_metrics",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MetricDefinition"
+                  },
+                  "type": "array",
+                  "title": "Response List Metrics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/analysis": {
+      "post": {
+        "summary": "Analyze",
+        "operationId": "analyze",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/hotspots/query": {
+      "post": {
+        "summary": "Query Hotspots",
+        "operationId": "query_hotspots",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotspotQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotspotPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/hotspots/cells/query": {
+      "post": {
+        "summary": "Query Hotspot Cells",
+        "description": "Read one stored summary and its saved cell shapes; never read source CSVs.",
+        "operationId": "query_hotspot_cells",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CellMapQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CellMapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/exports": {
+      "post": {
+        "summary": "Export Results",
+        "operationId": "export_results",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Analysis JSON or observation CSV.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "AnalysisRequest": {
-        "additionalProperties": false,
         "properties": {
-          "aggregation": {
-            "enum": [
-              "day",
-              "month"
-            ],
-            "title": "Aggregation",
-            "type": "string"
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
           },
           "bbox": {
-            "maxItems": 4,
-            "minItems": 4,
             "prefixItems": [
               {
                 "type": "number"
@@ -29,8 +306,39 @@
                 "type": "number"
               }
             ],
-            "title": "Bbox",
-            "type": "array"
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "observed_hotspot_count",
+              "harmonized_hotspot_count",
+              "active_cell_count",
+              "frp_pass_sum_mw",
+              "valid_coverage_fraction"
+            ],
+            "title": "Metric"
+          },
+          "aggregation": {
+            "type": "string",
+            "enum": [
+              "day",
+              "month"
+            ],
+            "title": "Aggregation"
           },
           "comparison": {
             "anyOf": [
@@ -41,22 +349,6 @@
                 "type": "null"
               }
             ]
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "metric": {
-            "enum": [
-              "observed_hotspot_count",
-              "harmonized_hotspot_count",
-              "active_cell_count",
-              "frp_pass_sum_mw",
-              "valid_coverage_fraction"
-            ],
-            "title": "Metric",
-            "type": "string"
           },
           "platforms": {
             "anyOf": [
@@ -71,17 +363,10 @@
               }
             ],
             "title": "Platforms"
-          },
-          "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "release_id",
           "bbox",
@@ -90,63 +375,14 @@
           "metric",
           "aggregation"
         ],
-        "title": "AnalysisRequest",
-        "type": "object"
+        "title": "AnalysisRequest"
       },
       "AnalysisResponse": {
-        "additionalProperties": false,
         "properties": {
-          "calendar": {
-            "items": {
-              "$ref": "#/components/schemas/PeriodResult"
-            },
-            "title": "Calendar",
-            "type": "array"
-          },
-          "latest_source_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latest Source Date"
-          },
-          "method_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Method Id"
-          },
           "query": {
             "$ref": "#/components/schemas/AnalysisRequest"
           },
-          "reference_count_definition": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference Count Definition"
-          },
-          "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
           "requested_bbox": {
-            "maxItems": 4,
-            "minItems": 4,
             "prefixItems": [
               {
                 "type": "number"
@@ -161,19 +397,10 @@
                 "type": "number"
               }
             ],
-            "title": "Requested Bbox",
-            "type": "array"
-          },
-          "response_time_ms": {
-            "title": "Response Time Ms",
-            "type": "number"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/PeriodResult"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Requested Bbox"
           },
           "used_area": {
             "anyOf": [
@@ -189,946 +416,9 @@
             ],
             "title": "Used Area"
           },
-          "warnings": {
-            "items": {
-              "$ref": "#/components/schemas/Notice"
-            },
-            "title": "Warnings",
-            "type": "array"
-          }
-        },
-        "required": [
-          "query",
-          "requested_bbox",
-          "used_area",
-          "release_id",
-          "method_id",
-          "reference_count_definition",
-          "unit",
-          "latest_source_date",
-          "response_time_ms",
-          "summary",
-          "calendar",
-          "warnings"
-        ],
-        "title": "AnalysisResponse",
-        "type": "object"
-      },
-      "BandRecord": {
-        "additionalProperties": false,
-        "properties": {
-          "band_name": {
-            "title": "Band Name",
-            "type": "string"
-          },
-          "flags": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Flags",
-            "type": "array"
-          },
-          "observation_id": {
-            "title": "Observation Id",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "required": [
-          "observation_id",
-          "band_name",
-          "value",
-          "unit",
-          "flags"
-        ],
-        "title": "BandRecord",
-        "type": "object"
-      },
-      "ComparisonRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "baseline_end_year": {
-            "title": "Baseline End Year",
-            "type": "integer"
-          },
-          "baseline_start_year": {
-            "title": "Baseline Start Year",
-            "type": "integer"
-          },
-          "mode": {
-            "const": "same_elapsed_days",
-            "title": "Mode",
-            "type": "string"
-          }
-        },
-        "required": [
-          "mode",
-          "baseline_start_year",
-          "baseline_end_year"
-        ],
-        "title": "ComparisonRequest",
-        "type": "object"
-      },
-      "CoverageResult": {
-        "additionalProperties": false,
-        "properties": {
-          "denominator": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Denominator"
-          },
-          "expected_days": {
-            "title": "Expected Days",
-            "type": "integer"
-          },
-          "numerator": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Numerator"
-          },
-          "unit": {
-            "const": "km2_visits",
-            "title": "Unit",
-            "type": "string"
-          },
-          "usable_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usable Days"
-          },
-          "valid_coverage_fraction": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valid Coverage Fraction"
-          }
-        },
-        "required": [
-          "expected_days",
-          "usable_days",
-          "numerator",
-          "denominator",
-          "unit",
-          "valid_coverage_fraction"
-        ],
-        "title": "CoverageResult",
-        "type": "object"
-      },
-      "ExportRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "aggregation": {
-            "anyOf": [
-              {
-                "enum": [
-                  "day",
-                  "month"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Aggregation"
-          },
-          "bbox": {
-            "maxItems": 4,
-            "minItems": 4,
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "title": "Bbox",
-            "type": "array"
-          },
-          "comparison": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ComparisonRequest"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "format": {
-            "enum": [
-              "csv",
-              "json"
-            ],
-            "title": "Format",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "observations",
-              "analysis"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "metric": {
-            "anyOf": [
-              {
-                "enum": [
-                  "observed_hotspot_count",
-                  "harmonized_hotspot_count",
-                  "active_cell_count",
-                  "frp_pass_sum_mw",
-                  "valid_coverage_fraction"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metric"
-          },
-          "platforms": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Platforms"
-          },
           "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "release_id",
-          "bbox",
-          "start_date",
-          "end_date",
-          "kind",
-          "format"
-        ],
-        "title": "ExportRequest",
-        "type": "object"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "title": "Detail",
-            "type": "array"
-          }
-        },
-        "title": "HTTPValidationError",
-        "type": "object"
-      },
-      "HealthResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "const": "ok",
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "HealthResponse",
-        "type": "object"
-      },
-      "HistoricalComparison": {
-        "additionalProperties": false,
-        "properties": {
-          "absolute_difference": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Absolute Difference"
-          },
-          "excluded_years": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Excluded Years",
-            "type": "object"
-          },
-          "median": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Median"
-          },
-          "percentage_difference": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Percentage Difference"
-          },
-          "status": {
-            "enum": [
-              "available",
-              "insufficient_baseline"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "warnings": {
-            "items": {
-              "$ref": "#/components/schemas/Notice"
-            },
-            "title": "Warnings",
-            "type": "array"
-          },
-          "years_used": {
-            "items": {
-              "type": "integer"
-            },
-            "title": "Years Used",
-            "type": "array"
-          }
-        },
-        "required": [
-          "status",
-          "median",
-          "years_used",
-          "excluded_years",
-          "absolute_difference",
-          "percentage_difference",
-          "warnings"
-        ],
-        "title": "HistoricalComparison",
-        "type": "object"
-      },
-      "HotspotFeature": {
-        "additionalProperties": false,
-        "properties": {
-          "geometry": {
-            "$ref": "#/components/schemas/PointGeometry"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "properties": {
-            "$ref": "#/components/schemas/HotspotProperties"
-          },
-          "type": {
-            "const": "Feature",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id",
-          "geometry",
-          "properties"
-        ],
-        "title": "HotspotFeature",
-        "type": "object"
-      },
-      "HotspotPage": {
-        "additionalProperties": false,
-        "properties": {
-          "features": {
-            "items": {
-              "$ref": "#/components/schemas/HotspotFeature"
-            },
-            "title": "Features",
-            "type": "array"
-          },
-          "has_more": {
-            "title": "Has More",
-            "type": "boolean"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          },
-          "query": {
-            "$ref": "#/components/schemas/HotspotQuery"
-          },
-          "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
-          "type": {
-            "const": "FeatureCollection",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "features",
-          "query",
-          "release_id",
-          "next_cursor",
-          "has_more"
-        ],
-        "title": "HotspotPage",
-        "type": "object"
-      },
-      "HotspotProperties": {
-        "additionalProperties": false,
-        "properties": {
-          "bands": {
-            "items": {
-              "$ref": "#/components/schemas/BandRecord"
-            },
-            "title": "Bands",
-            "type": "array"
-          },
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "frp_mw": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Frp Mw"
-          },
-          "hotspot_type": {
-            "title": "Hotspot Type",
-            "type": "string"
-          },
-          "instrument": {
-            "title": "Instrument",
-            "type": "string"
-          },
-          "observed_at": {
-            "format": "date-time",
-            "title": "Observed At",
-            "type": "string"
-          },
-          "pass_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pass Id"
-          },
-          "platform": {
-            "title": "Platform",
-            "type": "string"
-          },
-          "product": {
-            "title": "Product",
-            "type": "string"
-          },
-          "quality": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Quality",
-            "type": "array"
-          },
-          "source_file_id": {
-            "title": "Source File Id",
-            "type": "string"
-          },
-          "source_row_id": {
-            "title": "Source Row Id",
-            "type": "integer"
-          },
-          "version": {
-            "title": "Version",
-            "type": "string"
-          }
-        },
-        "required": [
-          "observed_at",
-          "platform",
-          "instrument",
-          "product",
-          "version",
-          "source_file_id",
-          "source_row_id",
-          "pass_id",
-          "frp_mw",
-          "confidence",
-          "hotspot_type",
-          "quality",
-          "bands"
-        ],
-        "title": "HotspotProperties",
-        "type": "object"
-      },
-      "HotspotQuery": {
-        "additionalProperties": false,
-        "properties": {
-          "bbox": {
-            "maxItems": 4,
-            "minItems": 4,
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "title": "Bbox",
-            "type": "array"
-          },
-          "cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cursor"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "page_size": {
-            "default": 1000,
-            "title": "Page Size",
-            "type": "integer"
-          },
-          "platforms": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Platforms",
-            "type": "array"
-          },
-          "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "release_id",
-          "bbox",
-          "start_date",
-          "end_date",
-          "platforms"
-        ],
-        "title": "HotspotQuery",
-        "type": "object"
-      },
-      "JsonValue": {},
-      "MetricDefinition": {
-        "additionalProperties": false,
-        "properties": {
-          "allowed_aggregations": {
-            "items": {
-              "enum": [
-                "day",
-                "month"
-              ],
-              "type": "string"
-            },
-            "title": "Allowed Aggregations",
-            "type": "array"
-          },
-          "definition": {
-            "title": "Definition",
-            "type": "string"
-          },
-          "name": {
-            "enum": [
-              "observed_hotspot_count",
-              "harmonized_hotspot_count",
-              "active_cell_count",
-              "frp_pass_sum_mw",
-              "valid_coverage_fraction"
-            ],
-            "title": "Name",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "unit",
-          "definition",
-          "allowed_aggregations"
-        ],
-        "title": "MetricDefinition",
-        "type": "object"
-      },
-      "MultiPolygonGeometry": {
-        "additionalProperties": false,
-        "properties": {
-          "coordinates": {
-            "items": {
-              "items": {
-                "items": {
-                  "maxItems": 2,
-                  "minItems": 2,
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array"
-                },
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "title": "Coordinates",
-            "type": "array"
-          },
-          "type": {
-            "const": "MultiPolygon",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "coordinates"
-        ],
-        "title": "MultiPolygonGeometry",
-        "type": "object"
-      },
-      "Notice": {
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "title": "Code",
-            "type": "string"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "message"
-        ],
-        "title": "Notice",
-        "type": "object"
-      },
-      "PeriodResult": {
-        "additionalProperties": false,
-        "properties": {
-          "baseline": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HistoricalComparison"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "coverage": {
-            "$ref": "#/components/schemas/CoverageResult"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "old_data": {
-            "title": "Old Data",
-            "type": "boolean"
-          },
-          "original_count": {
-            "title": "Original Count",
-            "type": "integer"
-          },
-          "original_count_rule": {
-            "title": "Original Count Rule",
-            "type": "string"
-          },
-          "partial_calendar_period": {
-            "title": "Partial Calendar Period",
-            "type": "boolean"
-          },
-          "partial_value": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Partial Value"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "available",
-              "observed_zero",
-              "partial",
-              "low_coverage",
-              "missing",
-              "insufficient_baseline",
-              "not_validated"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "uncertainty": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UncertaintyResult"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          },
-          "warnings": {
-            "items": {
-              "$ref": "#/components/schemas/Notice"
-            },
-            "title": "Warnings",
-            "type": "array"
-          }
-        },
-        "required": [
-          "start_date",
-          "end_date",
-          "value",
-          "partial_value",
-          "original_count",
-          "original_count_rule",
-          "coverage",
-          "baseline",
-          "uncertainty",
-          "status",
-          "partial_calendar_period",
-          "old_data",
-          "warnings"
-        ],
-        "title": "PeriodResult",
-        "type": "object"
-      },
-      "PointGeometry": {
-        "additionalProperties": false,
-        "properties": {
-          "coordinates": {
-            "maxItems": 2,
-            "minItems": 2,
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "title": "Coordinates",
-            "type": "array"
-          },
-          "type": {
-            "const": "Point",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "coordinates"
-        ],
-        "title": "PointGeometry",
-        "type": "object"
-      },
-      "PolygonGeometry": {
-        "additionalProperties": false,
-        "properties": {
-          "coordinates": {
-            "items": {
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "title": "Coordinates",
-            "type": "array"
-          },
-          "type": {
-            "const": "Polygon",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "coordinates"
-        ],
-        "title": "PolygonGeometry",
-        "type": "object"
-      },
-      "ReleasePublicResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "baseline_rules": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/JsonValue"
-            },
-            "title": "Baseline Rules",
-            "type": "object"
-          },
-          "code_version": {
-            "title": "Code Version",
-            "type": "string"
+            "type": "string",
+            "title": "Release Id"
           },
           "method_id": {
             "anyOf": [
@@ -1152,42 +442,1191 @@
             ],
             "title": "Reference Count Definition"
           },
-          "report_sha256": {
-            "title": "Report Sha256",
-            "type": "string"
+          "unit": {
+            "type": "string",
+            "title": "Unit"
           },
-          "report_urls": {
+          "latest_source_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Source Date"
+          },
+          "response_time_ms": {
+            "type": "number",
+            "title": "Response Time Ms"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PeriodResult"
+          },
+          "calendar": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodResult"
+            },
+            "type": "array",
+            "title": "Calendar"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Notice"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query",
+          "requested_bbox",
+          "used_area",
+          "release_id",
+          "method_id",
+          "reference_count_definition",
+          "unit",
+          "latest_source_date",
+          "response_time_ms",
+          "summary",
+          "calendar",
+          "warnings"
+        ],
+        "title": "AnalysisResponse"
+      },
+      "BandRecord": {
+        "properties": {
+          "observation_id": {
+            "type": "string",
+            "title": "Observation Id"
+          },
+          "band_name": {
+            "type": "string",
+            "title": "Band Name"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "flags": {
             "items": {
               "type": "string"
             },
-            "title": "Report Urls",
-            "type": "array"
+            "type": "array",
+            "title": "Flags"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "observation_id",
+          "band_name",
+          "value",
+          "unit",
+          "flags"
+        ],
+        "title": "BandRecord"
+      },
+      "CellMapFeature": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "Feature",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolygonGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/MultiPolygonGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "geometry",
+          "properties"
+        ],
+        "title": "CellMapFeature"
+      },
+      "CellMapQuery": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 4,
+                "minItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox"
+          },
+          "area_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "date"
+        ],
+        "title": "CellMapQuery"
+      },
+      "CellMapResponse": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FeatureCollection",
+            "title": "Type",
+            "default": "FeatureCollection"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/CellMapFeature"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "grid_version": {
+            "type": "string",
+            "title": "Grid Version"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "active_cell_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Cell Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "features",
+          "release_id",
+          "grid_version",
+          "date",
+          "active_cell_count",
+          "status"
+        ],
+        "title": "CellMapResponse"
+      },
+      "ComparisonRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "same_elapsed_days",
+            "title": "Mode"
+          },
+          "baseline_start_year": {
+            "type": "integer",
+            "title": "Baseline Start Year"
+          },
+          "baseline_end_year": {
+            "type": "integer",
+            "title": "Baseline End Year"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "baseline_start_year",
+          "baseline_end_year"
+        ],
+        "title": "ComparisonRequest"
+      },
+      "CoverageResult": {
+        "properties": {
+          "expected_days": {
+            "type": "integer",
+            "title": "Expected Days"
+          },
+          "usable_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usable Days"
+          },
+          "numerator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numerator"
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "unit": {
+            "type": "string",
+            "const": "km2_visits",
+            "title": "Unit"
+          },
+          "valid_coverage_fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Coverage Fraction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_days",
+          "usable_days",
+          "numerator",
+          "denominator",
+          "unit",
+          "valid_coverage_fraction"
+        ],
+        "title": "CoverageResult"
+      },
+      "ExportRequest": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "bbox": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observations",
+              "analysis"
+            ],
+            "title": "Kind"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "json"
+            ],
+            "title": "Format"
+          },
+          "platforms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platforms"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "observed_hotspot_count",
+                  "harmonized_hotspot_count",
+                  "active_cell_count",
+                  "frp_pass_sum_mw",
+                  "valid_coverage_fraction"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "aggregation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "month"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregation"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "bbox",
+          "start_date",
+          "end_date",
+          "kind",
+          "format"
+        ],
+        "title": "ExportRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "HistoricalComparison": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "insufficient_baseline"
+            ],
+            "title": "Status"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "years_used": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Years Used"
+          },
+          "excluded_years": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Excluded Years"
+          },
+          "absolute_difference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Difference"
+          },
+          "percentage_difference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentage Difference"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Notice"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "median",
+          "years_used",
+          "excluded_years",
+          "absolute_difference",
+          "percentage_difference",
+          "warnings"
+        ],
+        "title": "HistoricalComparison"
+      },
+      "HotspotFeature": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "Feature",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/PointGeometry"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/HotspotProperties"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "geometry",
+          "properties"
+        ],
+        "title": "HotspotFeature"
+      },
+      "HotspotPage": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FeatureCollection",
+            "title": "Type"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/HotspotFeature"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "query": {
+            "$ref": "#/components/schemas/HotspotQuery"
+          },
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "features",
+          "query",
+          "release_id",
+          "next_cursor",
+          "has_more"
+        ],
+        "title": "HotspotPage"
+      },
+      "HotspotProperties": {
+        "properties": {
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "instrument": {
+            "type": "string",
+            "title": "Instrument"
+          },
+          "product": {
+            "type": "string",
+            "title": "Product"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "source_file_id": {
+            "type": "string",
+            "title": "Source File Id"
+          },
+          "source_row_id": {
+            "type": "integer",
+            "title": "Source Row Id"
+          },
+          "pass_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Id"
+          },
+          "frp_mw": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frp Mw"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "hotspot_type": {
+            "type": "string",
+            "title": "Hotspot Type"
+          },
+          "quality": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Quality"
+          },
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/BandRecord"
+            },
+            "type": "array",
+            "title": "Bands"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "observed_at",
+          "platform",
+          "instrument",
+          "product",
+          "version",
+          "source_file_id",
+          "source_row_id",
+          "pass_id",
+          "frp_mw",
+          "confidence",
+          "hotspot_type",
+          "quality",
+          "bands"
+        ],
+        "title": "HotspotProperties"
+      },
+      "HotspotQuery": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "bbox": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "platforms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Platforms"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 1000
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "bbox",
+          "start_date",
+          "end_date",
+          "platforms"
+        ],
+        "title": "HotspotQuery"
+      },
+      "JsonValue": {},
+      "MetricDefinition": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "observed_hotspot_count",
+              "harmonized_hotspot_count",
+              "active_cell_count",
+              "frp_pass_sum_mw",
+              "valid_coverage_fraction"
+            ],
+            "title": "Name"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition"
+          },
+          "allowed_aggregations": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "day",
+                "month"
+              ]
+            },
+            "type": "array",
+            "title": "Allowed Aggregations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "unit",
+          "definition",
+          "allowed_aggregations"
+        ],
+        "title": "MetricDefinition"
+      },
+      "MultiPolygonGeometry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "MultiPolygon",
+            "title": "Type"
+          },
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coordinates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "MultiPolygonGeometry"
+      },
+      "Notice": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Notice"
+      },
+      "PeriodResult": {
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "partial_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Value"
+          },
+          "original_count": {
+            "type": "integer",
+            "title": "Original Count"
+          },
+          "original_count_rule": {
+            "type": "string",
+            "title": "Original Count Rule"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageResult"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoricalComparison"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UncertaintyResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "observed_zero",
+              "partial",
+              "low_coverage",
+              "missing",
+              "insufficient_baseline",
+              "not_validated"
+            ],
+            "title": "Status"
+          },
+          "partial_calendar_period": {
+            "type": "boolean",
+            "title": "Partial Calendar Period"
+          },
+          "old_data": {
+            "type": "boolean",
+            "title": "Old Data"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Notice"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start_date",
+          "end_date",
+          "value",
+          "partial_value",
+          "original_count",
+          "original_count_rule",
+          "coverage",
+          "baseline",
+          "uncertainty",
+          "status",
+          "partial_calendar_period",
+          "old_data",
+          "warnings"
+        ],
+        "title": "PeriodResult"
+      },
+      "PointGeometry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "Point",
+            "title": "Type"
+          },
+          "coordinates": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Coordinates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "PointGeometry"
+      },
+      "PolygonGeometry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "Polygon",
+            "title": "Type"
+          },
+          "coordinates": {
+            "items": {
+              "items": {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coordinates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "PolygonGeometry"
+      },
+      "ReleasePublicResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ReleaseSummary"
+          },
+          "method_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Id"
+          },
+          "reference_count_definition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Count Definition"
+          },
+          "code_version": {
+            "type": "string",
+            "title": "Code Version"
           },
           "settings": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
             },
-            "title": "Settings",
-            "type": "object"
+            "type": "object",
+            "title": "Settings"
           },
           "source_files": {
             "items": {
               "$ref": "#/components/schemas/SourceFileRecord"
             },
-            "title": "Source Files",
-            "type": "array"
+            "type": "array",
+            "title": "Source Files"
           },
           "source_selection": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
             },
-            "title": "Source Selection",
-            "type": "object"
+            "type": "object",
+            "title": "Source Selection"
           },
-          "summary": {
-            "$ref": "#/components/schemas/ReleaseSummary"
+          "baseline_rules": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Baseline Rules"
+          },
+          "report_sha256": {
+            "type": "string",
+            "title": "Report Sha256"
+          },
+          "report_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Report Urls"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "summary",
           "method_id",
@@ -1200,59 +1639,16 @@
           "report_sha256",
           "report_urls"
         ],
-        "title": "ReleasePublicResponse",
-        "type": "object"
+        "title": "ReleasePublicResponse"
       },
       "ReleaseSummary": {
-        "additionalProperties": false,
         "properties": {
-          "allowed_platforms": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allowed Platforms",
-            "type": "array"
-          },
-          "available_metrics": {
-            "items": {
-              "enum": [
-                "observed_hotspot_count",
-                "harmonized_hotspot_count",
-                "active_cell_count",
-                "frp_pass_sum_mw",
-                "valid_coverage_fraction"
-              ],
-              "type": "string"
-            },
-            "title": "Available Metrics",
-            "type": "array"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "latest_source_dates": {
-            "additionalProperties": {
-              "format": "date",
-              "type": "string"
-            },
-            "title": "Latest Source Dates",
-            "type": "object"
-          },
           "release_id": {
-            "title": "Release Id",
-            "type": "string"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
+            "type": "string",
+            "title": "Release Id"
           },
           "study_areas": {
             "items": {
-              "maxItems": 4,
-              "minItems": 4,
               "prefixItems": [
                 {
                   "type": "number"
@@ -1267,12 +1663,55 @@
                   "type": "number"
                 }
               ],
-              "type": "array"
+              "type": "array",
+              "maxItems": 4,
+              "minItems": 4
             },
-            "title": "Study Areas",
-            "type": "array"
+            "type": "array",
+            "title": "Study Areas"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "latest_source_dates": {
+            "additionalProperties": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "object",
+            "title": "Latest Source Dates"
+          },
+          "available_metrics": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "observed_hotspot_count",
+                "harmonized_hotspot_count",
+                "active_cell_count",
+                "frp_pass_sum_mw",
+                "valid_coverage_fraction"
+              ]
+            },
+            "type": "array",
+            "title": "Available Metrics"
+          },
+          "allowed_platforms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Platforms"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "release_id",
           "study_areas",
@@ -1282,59 +1721,59 @@
           "available_metrics",
           "allowed_platforms"
         ],
-        "title": "ReleaseSummary",
-        "type": "object"
+        "title": "ReleaseSummary"
       },
       "SourceFileRecord": {
-        "additionalProperties": false,
         "properties": {
-          "downloaded_at": {
-            "format": "date-time",
-            "title": "Downloaded At",
-            "type": "string"
+          "source_file_id": {
+            "type": "string",
+            "title": "Source File Id"
           },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "processing_mode": {
-            "title": "Processing Mode",
-            "type": "string"
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
           },
           "product": {
-            "title": "Product",
-            "type": "string"
+            "type": "string",
+            "title": "Product"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "processing_mode": {
+            "type": "string",
+            "title": "Processing Mode"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "downloaded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Downloaded At"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
           },
           "request_parameters": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
             },
-            "title": "Request Parameters",
-            "type": "object"
-          },
-          "sha256": {
-            "title": "Sha256",
-            "type": "string"
-          },
-          "source_file_id": {
-            "title": "Source File Id",
-            "type": "string"
-          },
-          "source_id": {
-            "title": "Source Id",
-            "type": "string"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "string"
+            "type": "object",
+            "title": "Request Parameters"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "source_file_id",
           "source_id",
@@ -1347,42 +1786,34 @@
           "sha256",
           "request_parameters"
         ],
-        "title": "SourceFileRecord",
-        "type": "object"
+        "title": "SourceFileRecord"
       },
       "UncertaintyResult": {
-        "additionalProperties": false,
         "properties": {
           "lower": {
-            "title": "Lower",
-            "type": "number"
-          },
-          "method": {
-            "title": "Method",
-            "type": "string"
+            "type": "number",
+            "title": "Lower"
           },
           "upper": {
-            "title": "Upper",
-            "type": "number"
+            "type": "number",
+            "title": "Upper"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "lower",
           "upper",
           "method"
         ],
-        "title": "UncertaintyResult",
-        "type": "object"
+        "title": "UncertaintyResult"
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -1394,270 +1825,32 @@
                 }
               ]
             },
-            "title": "Location",
-            "type": "array"
+            "type": "array",
+            "title": "Location"
           },
           "msg": {
-            "title": "Message",
-            "type": "string"
+            "type": "string",
+            "title": "Message"
           },
           "type": {
-            "title": "Error Type",
-            "type": "string"
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
+        "type": "object",
         "required": [
           "loc",
           "msg",
           "type"
         ],
-        "title": "ValidationError",
-        "type": "object"
-      }
-    }
-  },
-  "info": {
-    "title": "Time-series API",
-    "version": "1.0.0"
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/health/live": {
-      "get": {
-        "operationId": "health_live",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Live"
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "health_ready",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Ready"
-      }
-    },
-    "/v1/analysis": {
-      "post": {
-        "operationId": "analyze",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AnalysisRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnalysisResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Analyze"
-      }
-    },
-    "/v1/exports": {
-      "post": {
-        "operationId": "export_results",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnalysisResponse"
-                }
-              },
-              "text/csv": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Analysis JSON or observation CSV."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Export Results"
-      }
-    },
-    "/v1/hotspots/query": {
-      "post": {
-        "operationId": "query_hotspots",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HotspotQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HotspotPage"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Query Hotspots"
-      }
-    },
-    "/v1/metrics": {
-      "get": {
-        "operationId": "list_metrics",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MetricDefinition"
-                  },
-                  "title": "Response List Metrics",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Metrics"
-      }
-    },
-    "/v1/releases": {
-      "get": {
-        "operationId": "list_releases",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ReleaseSummary"
-                  },
-                  "title": "Response List Releases",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Releases"
-      }
-    },
-    "/v1/releases/{release_id}": {
-      "get": {
-        "operationId": "get_release",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "release_id",
-            "required": true,
-            "schema": {
-              "title": "Release Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReleasePublicResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Release"
+        "title": "ValidationError"
       }
     }
   }

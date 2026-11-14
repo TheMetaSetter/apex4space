@@ -1,5 +1,10 @@
 # Minimal time-series-api directory tree
 
+Responder MVP update (2026-11-14): the new file-level tree and proposed
+signatures are in `documents/logs/2026-11-14/detail/detail-responder-hotspot-mvp.md`.
+Existing interfaces below remain the compatibility baseline; the new plan
+does not claim those interfaces have already migrated.
+
 Status: proposed design; no application code created.
 Basis: [development spec v0.4](../../../specs/time-series-api-devspec.md).
 The specification remains the source of truth.

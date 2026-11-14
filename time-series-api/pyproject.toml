@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "time-series-api"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["fastapi==0.162.6", "pydantic==2.14.3", "uvicorn==0.54.0", "httpx==0.28.1", "shapely==2.2.0"]
+dependencies = ["fastapi==0.162.6", "pydantic==2.14.3", "uvicorn==0.54.0", "httpx==0.28.1", "shapely==2.2.0", "pyproj==3.7.2"]
 
 [project.optional-dependencies]
 test = ["pytest==9.2.0"]

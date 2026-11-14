@@ -98,7 +98,7 @@ def test_source_reader_keeps_text_versions(tmp_path):
         list(reader)
 
 
-def test_batches_keep_provenance(tmp_path):
+def test_batches_keep_provenance(tmp_path, monkeypatch):
     sources = import_module("app.sources")
     path = FIXTURES / "observations.csv"
     batches = list(sources.read_source(path, source_for(path), batch_size=2))
@@ -128,6 +128,82 @@ def test_batches_keep_provenance(tmp_path):
         writer.writerows(source_rows)
     with pytest.raises(ValueError, match="ring"):
         list(sources.read_opportunities(invalid, source_for(invalid, "fixture-opportunities"), batch_size=1))
+
+    drive = import_module("app.drive")
+    monkeypatch.setenv("GOOGLE_DRIVE_ACCESS_TOKEN", "test-token")
+    csv_bytes = (
+        b"latitude,longitude,bright_ti4,bright_ti5,acq_date,acq_time,satellite,instrument,version,frp,confidence\n"
+        b'10.5,106.2,320,290,2026-01-01,1,N,VIIRS,2.0NRT,1,"fire\nwatch"\n'
+        b"10.5,106.3,321,291,2025-12-31,2,N,VIIRS,2.0URT,2,nominal\n"
+    )
+
+    class Reply:
+        status_code = 200
+        headers = {"content-type": "text/csv"}
+
+        def __init__(self, body=None):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+        def raise_for_status(self):
+            return None
+
+        def iter_bytes(self, size):
+            for offset in range(0, len(csv_bytes), 7):
+                yield csv_bytes[offset:offset + 7]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    class DriveClient:
+        def get(self, url, **kwargs):
+            if url.endswith("/files"):
+                page_token = kwargs.get("params", {}).get("pageToken")
+                if page_token:
+                    return Reply({"files": []})
+                return Reply({"files": [
+                    {"id": "drive-csv", "name": "sensor.csv", "mimeType": "text/csv",
+                     "size": str(len(csv_bytes)), "modifiedTime": "2026-01-02T00:00:00Z",
+                     "version": "7", "headRevisionId": "r7"},
+                    {"id": "ignored-zip", "name": "sensor.zip", "mimeType": "application/zip"},
+                    {"id": "ignored-notebook", "name": "sensor.ipynb", "mimeType": "text/plain"},
+                    {"id": "ignored-shortcut", "name": "sensor.csv", "mimeType": "application/vnd.google-apps.shortcut"},
+                ], "nextPageToken": "page-2"})
+            return Reply({
+                "id": "drive-csv", "name": "sensor.csv", "mimeType": "text/csv",
+                "size": str(len(csv_bytes)), "modifiedTime": "2026-01-02T00:00:00Z",
+                "version": "7", "headRevisionId": "r7",
+            })
+
+        def stream(self, method, url, **kwargs):
+            return Reply()
+
+    area = drive.AreaRecord(area_id="world", name="World", version="1", geometry={
+        "type": "Polygon", "coordinates": (((-180, -90), (180, -90),
+            (180, 90), (-180, 90), (-180, -90)),),
+    })
+    drive_file = drive.DriveFile(
+        file_id="drive-csv", name="sensor.csv", mime_type="text/csv", size=len(csv_bytes),
+        modified_time="2026-01-02T00:00:00Z", version="7", head_revision_id="r7",
+        md5_checksum=None, sha256_checksum=None, source_id="VIIRS_SNPP_NRT",
+    )
+    listed = drive.list_drive_csvs("folder", client=DriveClient(), source_ids={
+        "drive-csv": "VIIRS_SNPP_NRT", "ignored-zip": "VIIRS_SNPP_NRT",
+        "ignored-notebook": "VIIRS_SNPP_NRT", "ignored-shortcut": "VIIRS_SNPP_NRT",
+    })
+    assert [item.file_id for item in listed] == ["drive-csv"]
+    grid = import_module("app.cells").GridSettings(grid_version="grid-v1", width_km=10.0)
+    processed = drive.scan_drive_csv(drive_file, client=DriveClient(), grid=grid, area=area,
+        start_date=date(2026, 1, 1), end_date=date(2026, 1, 2),
+        platforms=("Suomi-NPP",), maximum_bytes=1024, maximum_memberships=10)
+    assert processed.rows_seen == 2 and processed.rows_used == 1
+    assert set(processed.daily_cell_sets) == {date(2026, 1, 1)}
+    assert processed.bytes_read == len(csv_bytes) and len(processed.sha256) == 64
 
 
 def test_fetch_windows_checks_budget_and_resumes(monkeypatch, tmp_path):
@@ -390,3 +466,12 @@ def test_fetch_windows_checks_budget_and_resumes(monkeypatch, tmp_path):
             module.parse_arguments([])
         parsed = module.parse_arguments(["--release-id", "fixture-v1"])
         assert parsed.settings == Path(__file__).parents[1] / "config" / "settings.json"
+        if name == "prepare_data":
+            sample_path = Path(__file__).parents[1] / "data" / "samples" / "sample_viirs_snpp_071223.csv"
+            local_args = module.parse_arguments([
+                "--release-id", "local-sample-v1", "--input-csv", str(sample_path),
+            ])
+            assert local_args.input_csv == sample_path
+            with pytest.raises(SystemExit):
+                module.parse_arguments(["--release-id", "bad", "--input-csv", str(sample_path),
+                                        "--drive-folder-id", "folder"])

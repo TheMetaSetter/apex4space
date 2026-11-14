@@ -1,0 +1,29 @@
+{
+  "storage": {
+    "database_path": "data/processed.sqlite3",
+    "staging_path": "data/processed-staging",
+    "releases_path": "data/processed-releases",
+    "saved_bytes_limit": 524288000,
+    "temporary_bytes_limit": 2147483648
+  },
+  "area_catalog_path": "config/areas.geojson",
+  "grid": {
+    "grid_version": "pilot-10km-v1",
+    "width_km": 10.0,
+    "projection": "EPSG:8857",
+    "origin_x_m": 0.0,
+    "origin_y_m": 0.0,
+    "edge_rule": "floor_half_open"
+  },
+  "start_date": "2026-09-01",
+  "end_date": "2026-09-02",
+  "area_id": "south-america-pilot-rectangle",
+  "platforms": ["Aqua", "Suomi-NPP"],
+  "drive_source_ids": {
+    "18LjhjUjJ8vRokZcbc1O-d3k9TKldn4vk": "MODIS_SP",
+    "1RzdWep7rqAQ--WdQWH1cp5X_pqeBIVBa": "VIIRS_SNPP_NRT"
+  },
+  "maximum_file_bytes": 83886080,
+  "maximum_run_bytes": 268435456,
+  "maximum_memberships": 100000
+}

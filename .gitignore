@@ -231,3 +231,4 @@ ref-codebases/
 /time-series-api/data/service.sqlite3*
 /time-series-api/data/staging/
 /time-series-api/data/releases/
+*.sqlite3

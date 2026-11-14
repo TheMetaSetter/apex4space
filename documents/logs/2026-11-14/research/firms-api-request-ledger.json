@@ -1,5 +1,7 @@
 {
-  "limit": 5,
+  "initial_exploration_limit": 5,
+  "additional_user_approved_requests": 2,
+  "requests_used": 7,
   "requests": [
     {
       "number": 1,
@@ -152,6 +154,31 @@
       "current_transactions": 9,
       "transaction_interval": "10 minutes",
       "elapsed_seconds": 1.179
+    },
+    {
+      "number": 6,
+      "purpose": "resume_status",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 96,
+      "note": "User-approved CLI resume check; no key or response body retained."
+    },
+    {
+      "number": 7,
+      "purpose": "resume_availability",
+      "result": "ok",
+      "http_status": 200,
+      "bytes": 442,
+      "note": "User-approved CLI resume check; no key or response body retained."
     }
-  ]
+  ],
+  "resume_command": {
+    "result": "reused_saved_window",
+    "new_data_request": false,
+    "saved_file_bytes": 122,
+    "saved_file_sha256": "2b11a44667d05367ecf77651b95fd3d34c545c7ec154856094b91245e41ae697",
+    "elapsed_seconds": 2.48,
+    "maximum_resident_bytes": 49430528,
+    "transaction_delta": "unknown"
+  }
 }

@@ -1,16 +1,25 @@
 """Prepare and publish a source-only data release."""
 
 import argparse
+import csv
 import hashlib
 import json
+import time
+import tracemalloc
 from collections.abc import Iterator, Sequence
 from datetime import date, datetime, timezone
 from pathlib import Path
 from pydantic import TypeAdapter
+from shapely.geometry import Point, shape
 
-from app.models import ReleaseRecord, ReleaseSummary, SourceBatch, ValidationReport, load_settings
-from app.sources import _downloaded_record, _read_progress, read_source, select_source_records
-from app.storage import initialize_database, publish_release
+from app.cells import (
+    AreaRecord, CellPreparationSettings, CellRecord, CellReleaseManifest, GridSettings,
+    load_area_catalog, load_cell_settings, summarize_hotspots, assign_cell, cell_from_id,
+)
+from app.drive import DriveFile, ProcessedSource, list_drive_csvs, scan_drive_csv
+from app.models import ReleaseRecord, ReleaseSummary, SourceBatch, SourceFileRecord, ValidationReport, load_settings
+from app.sources import _downloaded_record, _read_progress, read_source, select_source_records, _sha256
+from app.storage import initialize_cell_database, initialize_database, publish_cell_release, publish_release
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PLATFORMS = {
@@ -20,10 +29,176 @@ SOURCE_PLATFORMS = {
 
 
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Prepare and publish a processed hotspot release.")
     parser.add_argument("--settings", type=Path, default=PROJECT_ROOT / "config" / "settings.json")
     parser.add_argument("--release-id", required=True)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--input-csv", type=Path)
+    source.add_argument("--drive-folder-id")
+    parser.add_argument("--source-id")
+    parser.add_argument("--area-id")
+    parser.add_argument("--start-date", type=date.fromisoformat)
+    parser.add_argument("--end-date", type=date.fromisoformat)
+    parser.add_argument("--platforms", nargs="+")
     return parser.parse_args(argv)
+
+
+def _date_window(settings: CellPreparationSettings, start_date, end_date):
+    start = start_date or settings.start_date
+    end = end_date or settings.end_date
+    if start >= end:
+        raise ValueError("start date must precede end date")
+    return start, end
+
+
+def _local_source(path: Path, source_id: str) -> SourceFileRecord:
+    if path.is_symlink() or not path.is_file() or not source_id:
+        raise ValueError("local CSV path or source ID is invalid")
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        first = next(reader, None)
+        if not reader.fieldnames or first is None:
+            raise ValueError("local CSV has no data rows")
+        version = first.get("version", "")
+    nrt = source_id.endswith("_NRT")
+    if nrt:
+        for suffix in ("NRT", "URT", "RT"):
+            if version.endswith(suffix):
+                version = version[:-len(suffix)]
+                break
+    product = "MODIS" if source_id.startswith("MODIS") else "VIIRS"
+    record = SourceFileRecord(
+        source_file_id=path.name, source_id=source_id, product=product, version=version,
+        processing_mode="NRT" if nrt else "standard", start_date=date.min, end_date=date.max,
+        downloaded_at=datetime.now(timezone.utc), sha256=_sha256(path), request_parameters={"local_file": path.name},
+    )
+    return record
+
+
+def _read_local_processed(path: Path, source_id: str, *, grid: GridSettings,
+                          area: AreaRecord, start_date: date, end_date: date,
+                          platforms: tuple[str, ...], maximum_memberships: int):
+    record = _local_source(path, source_id)
+    area_geometry = shape(area.geometry)
+    day_cells: dict[date, set[str]] = {}
+    shapes: dict[str, CellRecord] = {}
+    rows_seen = rows_used = 0
+    for batch in read_source(path, record, batch_size=1000):
+        for observation in batch.observations:
+            rows_seen += 1
+            day = observation.observed_at.date()
+            if observation.platform not in platforms or not start_date <= day < end_date:
+                continue
+            cell = assign_cell(observation.longitude, observation.latitude, grid)
+            if not area_geometry.covers(Point(cell.center_longitude, cell.center_latitude)):
+                continue
+            day_cells.setdefault(day, set()).add(cell.cell_id)
+            shapes[cell.cell_id] = cell
+            rows_used += 1
+            if sum(len(values) for values in day_cells.values()) > maximum_memberships:
+                raise ValueError("processed memberships exceed the configured limit")
+    return record, day_cells, shapes, rows_seen, rows_used, path.stat().st_size
+
+
+def prepare_cell_release(settings: CellPreparationSettings, release_id: str, *,
+                         input_csv: Path | None = None, input_source: str | None = None,
+                         drive_folder_id: str | None = None, start_date: date | None = None,
+                         end_date: date | None = None, area_id: str | None = None,
+                         platforms: tuple[str, ...] | None = None) -> None:
+    """Stream selected sources and publish only two processed tables."""
+    from app.drive import load_drive_token
+    import httpx
+
+    if bool(input_csv) == bool(drive_folder_id):
+        raise ValueError("select exactly one local CSV or Drive folder")
+    selected_start, selected_end = _date_window(settings, start_date, end_date)
+    selected_area_id = area_id or settings.area_id
+    selected_platforms = platforms or settings.platforms
+    if not set(selected_platforms).issubset(set(settings.platforms)):
+        raise ValueError("platform selection is not enabled in processed settings")
+    areas = {item.area_id: item for item in load_area_catalog(settings.area_catalog_path)}
+    if selected_area_id not in areas:
+        raise ValueError("area ID is not in the reviewed catalog")
+    area = areas[selected_area_id]
+    started = time.perf_counter()
+    tracemalloc.start()
+    all_days: dict[date, set[str]] = {}
+    all_cells: dict[str, CellRecord] = {}
+    sources = []
+    scanned_bytes = rows_seen = rows_used = 0
+    if input_csv is not None:
+        if input_source is None:
+            raise ValueError("--source-id is required with --input-csv")
+        record, days, cells_by_id, seen, used, size = _read_local_processed(
+            input_csv, input_source, grid=settings.grid, area=area,
+            start_date=selected_start, end_date=selected_end,
+            platforms=selected_platforms, maximum_memberships=settings.maximum_memberships)
+        sources.append({"source_id": record.source_id, "file_id": record.source_file_id,
+                        "version": record.version, "sha256": record.sha256,
+                        "bytes_read": size, "rows_seen": seen, "rows_used": used})
+        scanned_bytes += size
+        rows_seen += seen
+        rows_used += used
+        all_cells.update(cells_by_id)
+        for day, ids in days.items():
+            all_days.setdefault(day, set()).update(ids)
+    else:
+        load_drive_token()
+        with httpx.Client(verify=True, follow_redirects=False, timeout=30) as client:
+            files = list_drive_csvs(drive_folder_id, client=client, source_ids=settings.drive_source_ids)
+            if {file.file_id for file in files} != set(settings.drive_source_ids):
+                raise ValueError("one or more explicitly selected Drive CSV files are missing")
+            for file in files:
+                processed = scan_drive_csv(file, client=client, grid=settings.grid, area=area,
+                    start_date=selected_start, end_date=selected_end, platforms=selected_platforms,
+                    maximum_bytes=settings.maximum_file_bytes,
+                    maximum_memberships=settings.maximum_memberships)
+                scanned_bytes += processed.bytes_read
+                if scanned_bytes > settings.maximum_run_bytes:
+                    raise ValueError("Drive run exceeds the configured byte limit")
+                rows_seen += processed.rows_seen
+                rows_used += processed.rows_used
+                sources.append({"source_id": processed.source_id, "file_id": file.file_id,
+                    "version": processed.source_version, "sha256": processed.sha256,
+                    "bytes_read": processed.bytes_read, "rows_seen": processed.rows_seen,
+                    "rows_used": processed.rows_used})
+                for day, ids in processed.daily_cell_sets.items():
+                    all_days.setdefault(day, set()).update(ids)
+                    for cell_id in ids:
+                        all_cells.setdefault(cell_id, cell_from_id(cell_id, settings.grid))
+                memberships = sum(len(items) for items in all_days.values())
+                if memberships > settings.maximum_memberships:
+                    raise ValueError("processed memberships exceed the configured limit")
+    day_states = {}
+    current = selected_start
+    from datetime import timedelta
+    while current < selected_end:
+        day_states[current] = "coverage_unknown"
+        current += timedelta(days=1)
+    summaries = summarize_hotspots(
+        {day: frozenset(ids) for day, ids in all_days.items()},
+        release_id=release_id, area_id=selected_area_id,
+        start_date=selected_start, end_date=selected_end, day_states=day_states,
+    )
+    catalog_hash = hashlib.sha256(settings.area_catalog_path.read_bytes()).hexdigest()
+    manifest = CellReleaseManifest(
+        release_id=release_id, grid_version=settings.grid.grid_version,
+        start_date=selected_start, end_date=selected_end, grid=settings.grid,
+        areas={selected_area_id: {"name": area.name, "version": area.version,
+                                 "geometry": area.geometry}},
+        sources=tuple(sources), code_version="0.1.0", catalog_sha256=catalog_hash,
+    )
+    initialize_cell_database(settings.storage.database_path)
+    publish_cell_release(settings.storage.database_path, iter(all_cells.values()), iter(summaries),
+                         manifest, settings.storage)
+    _, peak_bytes = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    elapsed = time.perf_counter() - started
+    print(json.dumps({"release_id": release_id, "status": "published",
+        "source_bytes_scanned": scanned_bytes, "rows_seen": rows_seen,
+        "rows_used": rows_used, "cell_day_memberships": sum(len(items) for items in all_days.values()),
+        "unique_hotspot_cells": len(all_cells), "peak_memory_bytes": peak_bytes,
+        "elapsed_seconds": round(elapsed, 3)}, sort_keys=True))
 
 
 def _source_inputs(settings):
@@ -141,6 +316,13 @@ def prepare_release(settings, release_id: str) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_arguments(argv)
     try:
+        if args.input_csv or args.drive_folder_id:
+            prepare_cell_release(load_cell_settings(args.settings), args.release_id,
+                input_csv=args.input_csv, input_source=args.source_id,
+                drive_folder_id=args.drive_folder_id, start_date=args.start_date,
+                end_date=args.end_date, area_id=args.area_id,
+                platforms=tuple(args.platforms) if args.platforms else None)
+            return 0
         prepare_release(load_settings(args.settings), args.release_id)
     except Exception as error:
         print(f"Preparation failed: {error}")

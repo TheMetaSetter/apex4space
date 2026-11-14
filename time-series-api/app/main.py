@@ -12,6 +12,7 @@ import os
 import secrets
 import time
 from pathlib import Path
+from shapely.geometry import shape
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -21,15 +22,16 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import analysis, storage
+from app.cells import CellMapQuery, CellMapResponse, make_cell_map
 from app.models import (
     AnalysisRequest, AnalysisResponse, ApiError, ApiSettings, ExportRequest,
     CursorPosition, ErrorResponse, HealthResponse,
     HotspotFeature, HotspotPage, HotspotProperties, HotspotQuery, MetricDefinition,
     ObservationPage, PointGeometry, ReleasePublicResponse,
-    ReleaseSummary, Settings, load_settings,
+    ReleaseSummary, Settings, load_settings, selection_geometry,
 )
 
-_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/exports"}
+_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/hotspots/cells/query", "/v1/exports"}
 _METRICS = (
     MetricDefinition(name="observed_hotspot_count", unit="detections",
         definition="Count selected source detections.", allowed_aggregations=("day", "month")),
@@ -66,6 +68,8 @@ def create_app(settings_path: Path | None = None) -> FastAPI:
     app.add_api_route("/v1/metrics", list_metrics, methods=["GET"], response_model=tuple[MetricDefinition, ...], operation_id="list_metrics")
     app.add_api_route("/v1/analysis", analyze, methods=["POST"], response_model=AnalysisResponse, operation_id="analyze")
     app.add_api_route("/v1/hotspots/query", query_hotspots, methods=["POST"], response_model=HotspotPage, operation_id="query_hotspots")
+    app.add_api_route("/v1/hotspots/cells/query", query_hotspot_cells, methods=["POST"],
+                      response_model=CellMapResponse, operation_id="query_hotspot_cells")
     app.add_api_route(
         "/v1/exports", export_results, methods=["POST"], response_class=Response,
         response_model=None, operation_id="export_results",
@@ -107,6 +111,7 @@ def list_releases(request: Request) -> tuple[ReleaseSummary, ...]:
 
 def get_release(release_id: str, request: Request) -> ReleasePublicResponse:
     settings: Settings = request.app.state.settings
+    _reject_processed_release(release_id, settings)
     release = storage.load_release(settings.storage.database_path, release_id)
     return ReleasePublicResponse.model_validate(release.__dict__)
 
@@ -118,6 +123,7 @@ def list_metrics() -> tuple[MetricDefinition, ...]:
 def analyze(query: AnalysisRequest, request: Request) -> AnalysisResponse:
     started = time.perf_counter()
     settings: Settings = request.app.state.settings
+    _reject_processed_release(query.release_id, settings)
     release = storage.load_release(settings.storage.database_path, query.release_id)
     analysis.validate_query_domain(query, release, settings=settings.api)
     inputs = storage.read_daily(settings.storage.database_path, query, settings=settings.api)
@@ -188,6 +194,7 @@ def to_geojson(page: ObservationPage, query: HotspotQuery, *, secret: bytes) -> 
 
 def query_hotspots(query: HotspotQuery, request: Request) -> HotspotPage:
     settings: Settings = request.app.state.settings
+    _reject_processed_release(query.release_id, settings)
     if query.page_size > settings.api.maximum_page_size:
         raise ApiError(422, "PAGE_SIZE_LIMIT", "The requested page is too large.")
     release = storage.load_release(settings.storage.database_path, query.release_id)
@@ -197,7 +204,48 @@ def query_hotspots(query: HotspotQuery, request: Request) -> HotspotPage:
     return to_geojson(page, query, secret=request.app.state.cursor_secret)
 
 
+def _reject_processed_release(release_id: str, settings: Settings) -> None:
+    root = settings.storage.cell_releases_path
+    if root is not None and (root / release_id).exists():
+        raise ApiError(409, "UNSUPPORTED_DATASET", "This release contains processed cell summaries only.")
+
+
+def query_hotspot_cells(query: CellMapQuery, request: Request) -> CellMapResponse:
+    """Read one stored summary and its saved cell shapes; never read source CSVs."""
+    settings: Settings = request.app.state.settings
+    database = settings.storage.cell_database_path
+    releases = settings.storage.cell_releases_path
+    if database is None or releases is None:
+        raise ApiError(503, "CELL_DATA_UNAVAILABLE", "Processed cell data are not configured.")
+    manifest = storage.read_cell_manifest(releases, query.release_id)
+    if query.area_id is not None:
+        area_id = query.area_id
+    else:
+        requested = shape(selection_geometry(query.bbox))
+        areas = [(area_id, record) for area_id, record in manifest.areas.items()
+                 if shape(record["geometry"]).covers(requested)]
+        if not areas:
+            raise ApiError(422, "AREA_NOT_PREPARED", "The bbox is not inside a prepared area.")
+        if len(areas) > 1:
+            raise ApiError(422, "AREA_AMBIGUOUS", "The bbox matches more than one prepared area.")
+        area_id = areas[0][0]
+    if area_id not in manifest.areas:
+        raise ApiError(422, "AREA_NOT_PREPARED", "The area is not in this release.")
+    area_geometry = manifest.areas[area_id]["geometry"]
+    summary = storage.read_hotspot_summary(database, query.release_id, area_id, query.date)
+    cells = storage.read_hotspot_cells(database, manifest.grid_version,
+        summary.hotspot_cell_ids) if summary.hotspot_cell_ids else ()
+    try:
+        return make_cell_map(query, summary, cells, grid_version=manifest.grid_version,
+                             selection=area_geometry)
+    except ValueError as error:
+        if "10,000" in str(error):
+            raise ApiError(413, "CELL_LIMIT", "The map selection has too many cells.") from None
+        raise ApiError(503, "CELL_DATA_INVALID", "The processed cell data are invalid.") from None
+
+
 def export_results(query: ExportRequest, request: Request) -> Response:
+    _reject_processed_release(query.release_id, request.app.state.settings)
     body, media_type, filename = build_export(query, settings=request.app.state.settings)
     return Response(body, media_type=media_type, headers={
         "Content-Disposition": f'attachment; filename="{filename}"',

@@ -7,6 +7,9 @@ keeps the earlier choices of OpenLayers and small saved API samples. These
 choices define a test plan; they do not prove that an FRP comparison works.
 Section 15 records naming and scope changes.
 
+The dated schema draft in §10.6 records later team choices. It extends the
+planned map scope; it does not claim that the database or OpenAPI has changed.
+
 ## 1. Goal
 
 Build a small data service for a web app that shows fire activity over time.
@@ -193,7 +196,8 @@ challenge; the map and calendar must also work with it.
 
 | Term | Simple meaning |
 | --- | --- |
-| Hotspot | A satellite detection of unusual heat. It is not always one wildfire. |
+| Hotspot (hotspot cell) | A grid cell with selected source detections on one UTC day. It is not a separate wildfire. |
+| Source detection | One satellite point record. The existing point API keeps its field names. |
 | FRP | Fire radiative power: estimated power from fire inside a pixel, in megawatts (MW). |
 | Pixel | The ground area represented by one sensor reading. |
 | Coverage | How much of the expected area and passes had usable observations. |
@@ -530,7 +534,10 @@ results. That is useful for development but is not a finished harmonized MVP.
 
 ## 10. Data tables and calculation rules
 
-### 10.1 Keep six clear tables
+### 10.1 Existing six-table design
+
+These are the existing tables. Section 10.6 proposes a smaller map and daily
+count path. Existing science tables keep their meanings and data.
 
 | Table | What it stores |
 | --- | --- |
@@ -552,7 +559,7 @@ unless the source gives that information.
 | --- | --- |
 | `observed_hotspot_count` | Integer count of selected source detections after stated duplicate handling. |
 | `harmonized_hotspot_count` | Nonnegative estimated reference detections; decimals are allowed. Requires passed count tests. |
-| `active_cell_count` | Optional count of cells with detections; never substituted for hotspot count. |
+| `active_cell_count` | Required daily hotspot count for the planned cell analysis: distinct detected cells in the selected area, UTC day, release, and platform selection. Count a cell once across platforms. Existing point/count API fields keep their meanings. |
 | `frp_pass_sum_mw` | FRP summed over a stated area for one pass. Sums over many times are not emitted energy. |
 | Daily cell FRP (planned) | Highest valid per-pass cell FRP sum in one UTC day, reported separately for each platform. This is an observed peak in MW, not daily energy or a corrected MODIS–VIIRS total. It is not in the current API contract. |
 | `valid_coverage_fraction` | Usable area across scheduled visits divided by expected area across those visits; null if unknown. |
@@ -624,6 +631,109 @@ Reject shapes outside the prepared release; do not silently trim them.
 Check the full shape in cursor/query matching. OpenLayers sends geographic
 coordinates, not map-screen coordinates. No polygon request field, geometry
 library, or polygon-drawing feature is required for the MVP.
+
+### 10.6 Hotspot cell schema draft — 2026-11-14
+
+Status: processed-only MVP, requested by the user. No runtime migration has
+been applied. This section supersedes the earlier three-table proposal and
+raw-retention requirements for this MVP. Broader science work remains later.
+
+#### Two small processed tables
+
+| Table | Primary key | Fields |
+| --- | --- | --- |
+| `hotspot_cell` | `(grid_version, cell_id)` | `center_longitude`, `center_latitude`, full GeoJSON `geometry`. Store only cells detected in the prepared releases; save each shape once per grid version. |
+| `daily_hotspot_summary` | `(release_id, area_id, date)` | Nullable `active_cell_count`, nullable sorted unique `hotspot_cell_ids` as JSON, `status`. One row per prepared area and UTC day. |
+
+Do not create `cell_detection` or any raw observation table in the new dataset.
+No raw rows, FRP arrays, band values, or detection-to-cell links are retained
+locally after preprocessing. Keep only the processed cell/day sets and shapes.
+Original CSVs remain in Drive; a future raw-detail feature requires those sources.
+Existing user files/databases are not deleted by this documentation change.
+
+Source file IDs, versions, full hashes, selected dates/platforms, area/catalog
+hash, grid settings, code version, and completeness checks stay in small
+`manifest.json` and `validation.json` files. Store filter rules and counts,
+not lists of original row IDs or raw records. The area catalog remains a
+versioned local file. These are metadata files, not additional database tables.
+Validate metadata and processed-data hashes before serving a release.
+
+#### Streaming preparation
+
+Input: selected CSVs in the [team Drive folder](https://drive.google.com/drive/folders/1_RbaB1o7lrmOlzsp8CGq34Oe_rQ_lKMc).
+Ignore ZIPs, notebooks, and other non-CSV content. Start with the checked
+MODIS/Suomi NRT file selection in the [Drive plan](../logs/2026-11-14/plan/plan-drive-csv-preprocessing.md).
+
+1. Stream bytes in small chunks; parse and check one CSV batch at a time.
+2. Convert each selected detection's center to its fixed grid cell.
+3. If the cell center is inside the prepared area, add its ID to that UTC
+   day's set. This includes detections outside the area outline when their
+   full cell is selected. Discard the raw row after this step.
+4. Verify the complete source stream, full hash, and unchanged Drive identity.
+   A failed or capped stream must not produce a published release.
+5. Union the selected files' daily sets. A cell seen by several platforms or
+   passes counts once per day. Build shapes only for the union of active cells.
+6. Save each day's sorted unique IDs, their count, and status. Publish both
+   tables and checked metadata as one release. Keep no temporary raw-row file.
+
+Aqua seeing A/B and Suomi-NPP seeing B/C gives three hotspots, not four.
+A cell active on two days counts once on each day. Summed daily counts are
+cell-days, not unique cells over the entire period.
+
+Save every day in the declared period. A processed empty input day has `[]`
+and count 0 with an explicit coverage state. Missing input has null IDs and
+null count; partial input retains only its known set and `partial` status.
+No detection does not prove no fire or usable observation coverage.
+
+#### Web read path
+
+**Flow:** Website → API → `daily_hotspot_summary` → `hotspot_cell` shapes →
+GeoJSON features + daily hotspot count → OpenLayers map and count display.
+
+For a named area/day, read the saved summary and its shapes. The release
+manifest fixes the grid version. Return one GeoJSON feature per listed cell.
+Do not query Drive, raw sources, or a detection table during a web request.
+
+For a bbox fully inside a prepared summary area, filter its listed cells by
+center and count the retained IDs. Do not return the unfiltered area's total.
+Reject selections without a containing prepared area. Clip display shapes only;
+keep full cell IDs. GeoJSON uses longitude/latitude; OpenLayers transforms it
+into the view projection. Keep the basemap below hotspot shapes.
+
+Use one grid width `w` in km per release. A width change creates a new grid
+version/release. Save published releases within budget; pause publication if full.
+A different platform filter requires a separately prepared release. Raw detail,
+FRP comparison, and history validation are outside this processed-only MVP.
+
+#### Size, integrity, and compatibility
+
+- Store geometry once, not once per area/day. Keep compact IDs and JSON.
+- Bound distinct cell/day memberships at 100,000 per run and cells at 10,000
+  per map response. This replaces the old retained-raw-row cap on this path.
+- Saved data remain within 500 MiB; temporary data within 2 GiB. Measure the
+  pilot. These bounds are limits, not a guarantee that every requested area fits.
+- Count equals unique ID-list length. Every listed ID must resolve in the
+  manifest's grid. JSON-list references are checked during preprocessing;
+  they are not SQL foreign keys. Missing shapes make a release invalid.
+- Use a separate pilot database with exactly these two user tables. Do not
+  run the old six-table initializer or copy the old science tables into it.
+- Existing point/raw export routes remain for legacy releases. On a processed
+  release, return an explicit unsupported-dataset/metric error; do not invent
+  points or silently fetch Drive. Existing user databases remain untouched.
+
+#### TimescaleDB later
+
+Start with SQLite. If needed, move both tables to regular PostgreSQL tables
+first and compare results. `daily_hotspot_summary` is the first hypertable
+candidate: its key includes `date`. If partitioning by a new UTC timestamp,
+migrate the day column and key together. Keep geometry in a regular table.
+No time-series server or automatic retention job is needed now.
+
+For much larger areas or years, repeated JSON ID lists may outgrow the budget.
+Measure them before expanding. A later normalized cell/day table needs its
+own design review; do not add it to this MVP preemptively. Reprocessing raw
+features depends on access to the recorded Drive version; a file ID alone
+cannot guarantee that an older source version stays available.
 
 ## 11. Phase 2 — Serve the data and connect the web app
 
@@ -1011,3 +1121,89 @@ claims about v0.3 object identity.
 No Python class, table, endpoint, request field, response field, or checkpoint
 name changes in v0.5. Do not implement the planned daily FRP as an unreviewed
 extension of `DailyRecord` or the current map response.
+
+### Earlier schema draft — 2026-11-14 (superseded by §10.6)
+
+Compared with the six-table v0.5 design, the current storage schema, and the
+schema discussion note. These are proposed additions, not applied migrations.
+
+| Existing name | Draft name | Status | Owner and boundary |
+| --- | --- | --- | --- |
+| Six tables in §10.1 | Same names | unchanged | Storage; preserve their existing meanings and data. |
+| No saved cell geometry table | `hotspot_cell` | new | Storage; sparse full-cell geometry by grid version. |
+| No release-specific cell link | `cell_detection` | new | Preparation/storage; source observations stay grid-independent. |
+| No per-platform cell/day table | `hotspot_cell_day` | new | Preparation/storage; does not rename `analysis_daily` or `DailyRecord`. |
+| Hotspot meaning a source point | Source detection; hotspot cell | split terminology | Shared glossary; existing point-route field names remain unchanged. |
+| No named-area request field | `area_id` | new, planned | API; one catalog for nations and other named areas. |
+| Point query route | Same route plus a separate cell route | unchanged plus planned addition | API; preserve the point contract and review the new cell contract separately. |
+
+No source, model, config, checkpoint, or OpenAPI field has migrated in this
+documentation step. A later implementation plan must name the affected files.
+
+### Earlier daily count clarification — 2026-11-14 (storage superseded by §10.6)
+
+- `active_cell_count`: same distinct-cell meaning; now required for planned
+  daily cell analysis. Owner: analysis. No existing API metric is renamed.
+- `daily_hotspot_summary`: new derived query result, not a stored table/view.
+  Owner: analysis/API; counts distinct cells across selected platforms.
+- `hotspot`: short name for hotspot cell in the cell design. Source detections
+  and existing `observed_hotspot_count` retain their separate meanings.
+- No database migration, source-code change, or OpenAPI update is applied here.
+
+### Simplified count-first schema proposal — 2026-11-14
+
+| Earlier object | Proposed object | Status | Owner and boundary |
+| --- | --- | --- | --- |
+| `source_file`, `observation`, `release` | Same names | unchanged | Storage; core source identity and release records. |
+| `hotspot_cell`, `cell_detection` | Same names | unchanged proposals | Preparation/storage; sparse shapes and release-specific assignments. |
+| Derived-only `daily_hotspot_summary` | Stored `daily_hotspot_summary` | changed lifecycle | Preparation writes area/day counts; API reads them. Same count meaning, now persisted by user request. |
+| Proposed `hotspot_cell_day` | No core equivalent | deprecated proposal for count-first MVP | Group linked observations for map counts. FRP storage remains open; no runtime table is removed. |
+| `analysis_daily`, `band_measurement`, `opportunity` | Same names | unchanged | Existing science support; no area/day alias or data deletion. |
+| `active_cell_count` | Same name | unchanged | Distinct cells per UTC day; union across release-selected platforms. |
+
+This proposal changes the previous platform-row storage choice. No source,
+config, model, checkpoint, SQL table, or OpenAPI migration is applied. Planning
+must cover preprocessing, storage/models, API/exports, examples, and validation
+before implementation. Earlier revision text above is retained as history.
+
+### Responder display scope — 2026-11-14
+
+The user limited the responder MVP to cell shapes and daily hotspot counts.
+The proposed `daily_hotspot_summary.hotspot_cell_ids` is a new stored field,
+owned by preprocessing/storage. Raw source records and cell links stay unchanged.
+Responder reads use summary IDs and `hotspot_cell` geometry instead of raw
+record joins. No database or OpenAPI migration is applied in this draft.
+
+### Drive CSV input refinement — 2026-11-14
+
+Proposed new `app/drive.py` owns Drive metadata and bounded byte extraction.
+Existing source normalization is reused through a proposed `read_source_rows`
+entry point. Database/table meanings and responder output remain unchanged.
+The implementation plan now uses Drive CSVs as its primary preprocessing input;
+no code or credentials have been added in this documentation change.
+
+### Three-table local MVP — 2026-11-14
+
+The user's three-table instruction supersedes earlier table proposals above.
+
+| Earlier object | New design | Status | Owner / migration |
+| --- | --- | --- | --- |
+| `observation` rows plus `cell_detection` links | Detection and assignment in `cell_detection` | merged | Preparation/storage; preserve raw IDs/fields in payload and validate grid links. Earlier link-only schema is not equivalent. |
+| `hotspot_cell`, `daily_hotspot_summary` | Same tables | unchanged | Cell shapes and stored area/day counts/IDs. |
+| `source_file`, `release` metadata tables | Release manifest and validation files | moved persistence | Preparation/storage; no table copies; check local metadata at startup. |
+| Science support tables | No new-MVP table equivalent | deferred | Existing data are not deleted; new unsupported science requests fail clearly. |
+
+No database or source code was changed by this documentation update.
+
+### Processed-only storage — 2026-11-14
+
+The user's processed-only instruction supersedes earlier local raw retention.
+
+| Earlier object | Current MVP | Status | Owner and migration boundary |
+| --- | --- | --- | --- |
+| `cell_detection` and `CellDetectionRecord` | No persisted equivalent | deprecated for this MVP | Preprocessing uses raw rows transiently; no local raw table or link file. |
+| `hotspot_cell`, `daily_hotspot_summary` | Same names and meanings | unchanged | The only two user tables in the new dataset. |
+| Per-row source selection | File/version/hash + declared filters and counts | changed provenance form | Release metadata; no retained row-ID arrays. |
+| Raw point/detail reads | Legacy releases only | narrowed scope | New processed releases return explicit unsupported errors. |
+
+No source, database, configuration, or OpenAPI migration is applied here.

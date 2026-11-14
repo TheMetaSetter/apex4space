@@ -89,9 +89,94 @@ Date: 2026-11-14
   needs a separate review of its geometry, values, and coverage states before
   the OpenAPI contract changes.
 
+## T9 native-input check
+
+- The shared Drive `Data` folder contains FIRMS CSV exports. The checked
+  entries include `fire_nrt_M-C61_842795.csv` and
+  `fire_archive_M-C61_842795.csv`, plus `fire_nrt_SV-C2_842798.csv` and
+  `fire_archive_SV-C2_842798.csv`. The archive CSVs are large. Do not download
+  them for this MVP.
+- Searches for `MYD14`, `MYD35`, `VNP14IMG`, and `VNP03IMG` found no native
+  product files. The folder data cannot verify native pass IDs, granules,
+  masks, geolocation quality, or actual file sizes.
+- **MYD14:** NASA lists Aqua MYD14 as a Collection 6.1, 5-minute, 1 km Level-2
+  fire swath. The C6/C6.1 guide defines the fire mask and algorithm QA as bit
+  fields, fire-pixel latitude/longitude in degrees, and fire-pixel power in
+  MW.
+  The mask separates unprocessed, water, cloud, no-fire, unknown, and three
+  fire-confidence classes. The product page lists a typical file size near
+  0.4 MB. The listed `MYD14` file is a fire source; it does not supply a full
+  coverage history by itself.
+- **MYD35_L2:** NASA lists the Aqua cloud mask as a 5-minute, 250 m/1 km
+  Collection 6.1 HDF-EOS product. It includes cloud mask and QA fields. The
+  product reference gives about 15 MB as a maximum file size. It is a quality
+  input, not a fire record source.
+- **VNP14IMG:** NASA lists a Suomi-NPP VIIRS 375 m Level-2 product in Collection
+  2.0. The file is NetCDF4/HDF5 and covers a six-minute orbit segment. Its
+  filename contains platform, acquisition day/time, collection, and
+  processing time. It has a fire mask, algorithm QA, fire-pixel locations,
+  and `FP_power` in MW. The guide identifies non-processable, cloud, water,
+  no-fire, fire, and bow-tie states; those flags must not be reduced to a
+  single fire/no-fire bit.
+- **VNP03IMG:** NASA lists a matching six-minute 375 m geolocation product in
+  NetCDF4. It supplies WGS84 pixel-center latitude/longitude and geolocation
+  quality fields. Its acquisition timestamp and collection must match the
+  selected VNP14IMG granule. A file-name time match still needs a content and
+  footprint check.
+- These product docs establish expected formats and fields. They do not
+  establish the exact versions, paired granule IDs, row values, usable masks,
+  or file sizes for the team's missing data. The file-size figures above are
+  product-page estimates, not measured pilot sizes.
+- Minimum reader choices, based on those documented formats:
+  - `pyhdf==0.11.7` (MIT) for the MODIS HDF4/HDF-EOS SDS fields.
+  - `netCDF4==1.7.5.1.post1` (MIT) for the VIIRS NetCDF4/HDF5 files.
+  - Do not add `h5py` or `xarray` for this reader. Do not add `pyproj` here;
+    grid projection is a separate step. These libraries are selected but not
+    installed. Install and test them only with the small checked files.
+  - The current environment is Python 3.13.5 on macOS 26.6.2 arm64. PyHDF has
+    a matching wheel; netCDF4 has a compatible macOS arm64 wheel. Check these
+    versions again before install.
+- NASA now reports that S-NPP product delivery stopped on 2026-11-01. The
+  planned study dates are in September 2026, but later requests must check
+  archive availability. For a science comparison, use the standard archived
+  products where available; NRT is a less stable input.
+- The documented formats support the reader choices above. The current Python
+  environment has NumPy and Shapely, but no `pyhdf`, `netCDF4`, `h5py`,
+  `h5netcdf`, `xarray`, or `pyproj`. Do not install the selected readers until
+  the actual native files are available for a small import check.
+- The reviewed notebook has NOAA-21 rows dated March 2023, while the checked
+  FIRMS availability page starts NOAA-21 coverage on 2024-01-17. Its saved
+  MODIS rows include versions `6.03` and `61.03`, with no checked collection
+  mapping. No matching native pair is available. Exclude these rows from
+  harmonization claims until product identity and dates are checked. The
+  separate local VIIRS sample also has mixed `2.0NRT` and `2.0URT` versions;
+  the source reader preserves those row versions.
+- Official product references:
+  - [NASA MYD14 product page](https://ladsweb.modaps.eosdis.nasa.gov/missions-and-measurements/products/MYD14)
+  - [NASA MYD35 product format and content](https://atmosphere-imager.gsfc.nasa.gov/products/cloud-mask/format-content)
+  - [NASA MYD35 collection 6.1 reference](https://atmosphere-imager.gsfc.nasa.gov/products/cloud-mask/doi-reference)
+  - [MODIS C6/C6.1 active-fire user guide](https://modis-fire.umd.edu/files/MODIS_C6_C6.1_Fire_User_Guide_1.0.pdf)
+  - [NASA MODIS cloud-mask page](https://atmosphere-imager.gsfc.nasa.gov/products/cloud-mask)
+  - [NASA VIIRS active-fire product guide](https://viirsland.gsfc.nasa.gov/PDF/VIIRS_activefire_User_Guide.pdf)
+  - [NASA VIIRS Collection 2.0 active-fire guide](https://ladsweb.modaps.eosdis.nasa.gov/archive/Document%20Archive/Science%20Data%20Product%20Documentation/VIIRS_C2_AF-375m_User_Guide_1.0.pdf)
+  - [NASA VIIRS product details](https://viirsland.gsfc.nasa.gov/Products/NASA/FireESDR.html)
+  - [NASA VNP14IMG file specification](https://ladsweb.modaps.eosdis.nasa.gov/filespec/VIIRS/1/VNP14IMG)
+  - [NASA VNP03IMG product page](https://ladsweb.modaps.eosdis.nasa.gov/missions-and-measurements/products/VNP03IMG/)
+  - [NASA VNP03IMG file specification](https://ladsweb.modaps.eosdis.nasa.gov/filespec/VIIRS/1/VNP03IMG)
+  - [PyHDF package release and license](https://pypi.org/project/pyhdf/)
+  - [netCDF4 package release and license](https://pypi.org/project/netCDF4/)
+  - [NASA S-NPP product delivery notice](https://www.earthdata.nasa.gov/data/alerts-outages/suomi-npp-data-product-delivery-cease-november-1-2026)
+
+T9 is now at item 5. The reader libraries are selected, but not installed.
+The actual-file checks in item 2 are still open. The projection, grid origin,
+cell IDs, edge rule, pass schedule, quality rules, held-out splits, and numeric
+acceptance targets also remain open. Do not write a native reader or start T10
+until a small matching native sample is available and its identity and dates
+are checked.
+
 ## Sources
 
-- Development spec v0.4: §§3.1, 7.2–7.4, 9 Step B, and 10.2.
+- Development spec v0.5: §§3.1, 7.2–7.4, 9 Step B, and 10.2.
 - Runtime: `app/models.py`, `app/analysis.py`, `app/main.py`, and
   `openapi.json` in `time-series-api/`.
 - [NASA VIIRS product guide](https://viirsland.gsfc.nasa.gov/Products/NASA/FireESDR.html):

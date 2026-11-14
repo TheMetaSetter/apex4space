@@ -58,7 +58,9 @@ def api_client(tmp_path, monkeypatch):
     data_path = Path(__file__).parents[1] / "config/settings.json"
     data = json.loads(data_path.read_text())
     data["storage"].update({"database_path": str(tmp_path / "api.sqlite3"),
-        "staging_path": str(tmp_path / "staging"), "releases_path": str(tmp_path / "releases")})
+        "staging_path": str(tmp_path / "staging"), "releases_path": str(tmp_path / "releases"),
+        "cell_database_path": str(tmp_path / "processed.sqlite3"),
+        "cell_releases_path": str(tmp_path / "processed-releases")})
     data["api"].update({"selected_release_id": "api-fixture-v1",
         "allowed_origins": ["http://localhost:3000"],
         "allowed_hosts": ["testserver", "localhost", "127.0.0.1"]})
@@ -72,6 +74,28 @@ def api_client(tmp_path, monkeypatch):
     storage.initialize_database(settings.storage.database_path)
     storage.publish_release(settings.storage.database_path, iter((batch,)), iter(()), release, report,
                             storage=settings.storage)
+    from app.cells import CellRecord, CellReleaseManifest, DailyHotspotSummary, GridSettings
+
+    grid = GridSettings(grid_version="test-grid-v1", width_km=10.0)
+    cell = CellRecord(grid_version=grid.grid_version, cell_id="0:0",
+        center_longitude=106.5, center_latitude=10.5,
+        geometry={"type": "Polygon", "coordinates": (((106, 10), (107, 10),
+            (107, 11), (106, 11), (106, 10)),)})
+    cell_release = CellReleaseManifest(release_id="cell-fixture-v1", grid_version=grid.grid_version,
+        start_date=date(2024, 3, 1), end_date=date(2024, 3, 2), grid=grid,
+        areas={"test-area": {"name": "Test area", "version": "1",
+                              "geometry": {"type": "Polygon", "coordinates": (((106, 10),
+                                  (107, 10), (107, 11), (106, 11), (106, 10)),)}}},
+        sources=(), code_version="fixture", catalog_sha256="0" * 64)
+    cell_summary = DailyHotspotSummary(release_id="cell-fixture-v1", area_id="test-area",
+        date=date(2024, 3, 1), active_cell_count=1, hotspot_cell_ids=("0:0",), status="available")
+    # The API test only needs this one day; the fixture remains small.
+    storage.initialize_cell_database(settings.storage.cell_database_path)
+    storage.publish_cell_release(settings.storage.cell_database_path, iter((cell,)),
+        iter((cell_summary,)), cell_release, settings.storage.model_copy(update={
+            "database_path": settings.storage.cell_database_path,
+            "releases_path": settings.storage.cell_releases_path,
+        }))
     from app.main import create_app
 
     with TestClient(create_app(settings_path)) as client:
