@@ -1,0 +1,23 @@
+{
+  "generated_at_utc": "2026-11-14T04:52:41Z",
+  "inputs": [
+    "processed/quality_controlled/MODIS_south_america_all_available.csv",
+    "processed/quality_controlled/VIIRS_SNPP_south_america_all_available.csv",
+    "processed/quality_controlled/VIIRS_NOAA20_south_america_all_available.csv",
+    "processed/quality_controlled/VIIRS_NOAA21_south_america_all_available.csv"
+  ],
+  "operational_unit": "1 km equal-area cell x UTC day",
+  "grid": "Cylindrical equal-area indexing: x=R*longitude_radians; y=R*sin(latitude_radians); R=6371.0088 km",
+  "interpretation": "A harmonized activity unit, not a unique fire or incident. Multiple observations in one cell-day are summarized, and satellite-specific values remain separate.",
+  "recommended_long_term_trend": "Use terra_backbone_cell_days as the consistent platform-specific baseline; show the all-sensor union and VIIRS contributions separately because sensor availability changes over time.",
+  "fire_type_note": "Type 0 is presumed vegetation fire; known types 1-3 are other source classes; missing type remains unknown. Cell-day type categories are mutually exclusive, but a mixed/unknown cell-day must not be silently treated as type 0.",
+  "map_date": "2023-07-12",
+  "observations_read": 84949359,
+  "observations_skipped_invalid": 0,
+  "hotspot_cell_days": 43782629,
+  "multi_sensor_cell_days": 3842655,
+  "map_date_cell_days": 5330,
+  "source_order_checked_by_day": true,
+  "monthly_rows": 313,
+  "detections_by_month_sum": 84949359
+}
