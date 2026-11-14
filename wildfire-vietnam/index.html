@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f6f2" />
+    <title>Cháy rừng Việt Nam</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h1>Cháy rừng Việt Nam</h1>
+      <span id="mock-label" class="mock-label" hidden>Dữ liệu mô phỏng</span>
+    </header>
+    <main class="dashboard">
+      <aside class="panel" aria-label="Thống kê cháy rừng">
+        <section class="summary" aria-labelledby="country">
+          <h2 id="country">Việt Nam</h2>
+          <time id="data-date"></time>
+          <dl class="metrics">
+            <div><dt>Ô có phát hiện</dt><dd id="grid-count">—</dd></div>
+            <div><dt>Lượt phát hiện</dt><dd id="detection-count">—</dd></div>
+          </dl>
+        </section>
+        <section class="legend" aria-labelledby="legend-title">
+          <h2 id="legend-title">Lượt phát hiện mỗi ô</h2>
+          <ol id="legend-bands"></ol>
+          <p>Ô lưới gốc 10 × 10 km. Các ô sát biên giới được cắt theo ranh giới Việt Nam.</p>
+        </section>
+        <section class="selection" aria-labelledby="selection-title" aria-live="polite">
+          <h2 id="selection-title">Thông tin ô</h2>
+          <p id="selection-detail">Bấm vào một ô trên bản đồ để xem chi tiết.</p>
+        </section>
+      </aside>
+      <section class="map-frame" aria-label="Bản đồ các ô có phát hiện cháy">
+        <div id="map"></div>
+        <div class="map-status" id="status-card" hidden>
+          <p id="status" role="status"></p>
+          <button id="retry" type="button" hidden>Thử lại</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
