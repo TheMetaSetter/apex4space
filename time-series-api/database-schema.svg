@@ -1,21 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 340" role="img" aria-labelledby="schema-title schema-desc" style="display:block;width:100%;min-width:780px;height:auto;background:white">
-<title id="schema-title">Two processed tables for the responder MVP</title>
-<desc id="schema-desc">Daily hotspot summary stores counts and sorted unique cell IDs by release, area, and UTC day. Those IDs look up full shapes in hotspot cell using the release grid version. The dashed link is validated during preprocessing, not a SQL foreign key. No raw detections are stored locally.</desc>
-<path d="M355 140 H485" fill="none" stroke="#4c6e9b" stroke-width="1.3" stroke-dasharray="6 4"/>
-<text x="371" y="128" font-family="system-ui,sans-serif" font-size="12" fill="#4c6e9b">ID lookup</text>
-<g font-family="system-ui,sans-serif"><rect x="25" y="30" width="330" height="184" fill="white" stroke="#b6b6b6"/><rect x="25" y="30" width="330" height="36" fill="#e8f2eb" stroke="#b6b6b6"/><text x="37" y="54" font-size="17" font-weight="600" fill="#19312e">hotspot_cell</text>
-<text x="35" y="90" font-size="10" font-weight="700" fill="#8a6410">PK</text><text x="87" y="90" font-family="monospace" font-size="15" fill="#24362f">grid_version</text>
-<text x="35" y="116" font-size="10" font-weight="700" fill="#8a6410">PK</text><text x="87" y="116" font-family="monospace" font-size="15" fill="#24362f">cell_id</text>
-<text x="35" y="142" font-size="10" font-weight="700" fill="#8a6410"></text><text x="87" y="142" font-family="monospace" font-size="15" fill="#24362f">center_longitude</text>
-<text x="35" y="168" font-size="10" font-weight="700" fill="#8a6410"></text><text x="87" y="168" font-family="monospace" font-size="15" fill="#24362f">center_latitude</text>
-<text x="35" y="194" font-size="10" font-weight="700" fill="#8a6410"></text><text x="87" y="194" font-family="monospace" font-size="15" fill="#24362f">geometry</text>
-</g>
-<g font-family="system-ui,sans-serif"><rect x="485" y="30" width="330" height="210" fill="white" stroke="#b6b6b6"/><rect x="485" y="30" width="330" height="36" fill="#e8f2eb" stroke="#b6b6b6"/><text x="497" y="54" font-size="17" font-weight="600" fill="#19312e">daily_hotspot_summary</text>
-<text x="495" y="90" font-size="10" font-weight="700" fill="#8a6410">PK</text><text x="547" y="90" font-family="monospace" font-size="15" fill="#24362f">release_id</text>
-<text x="495" y="116" font-size="10" font-weight="700" fill="#8a6410">PK</text><text x="547" y="116" font-family="monospace" font-size="15" fill="#24362f">area_id</text>
-<text x="495" y="142" font-size="10" font-weight="700" fill="#8a6410">PK</text><text x="547" y="142" font-family="monospace" font-size="15" fill="#24362f">date</text>
-<text x="495" y="168" font-size="10" font-weight="700" fill="#8a6410"></text><text x="547" y="168" font-family="monospace" font-size="15" fill="#24362f">active_cell_count</text>
-<text x="495" y="194" font-size="10" font-weight="700" fill="#8a6410"></text><text x="547" y="194" font-family="monospace" font-size="15" fill="#24362f">hotspot_cell_ids (JSON)</text>
-<text x="495" y="220" font-size="10" font-weight="700" fill="#8a6410"></text><text x="547" y="220" font-family="monospace" font-size="15" fill="#24362f">status</text>
-</g>
-<text x="25" y="294" font-family="system-ui,sans-serif" font-size="14" fill="#546762">Local tables contain processed cells and summaries only.</text><text x="25" y="320" font-family="system-ui,sans-serif" font-size="14" fill="#546762">Source/version/hash and grid settings stay in small release metadata files.</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" role="img" aria-labelledby="title desc">
+<title id="title">Schema 2 all-date hotspot database</title>
+<desc id="desc">Three processed tables link daily counts to cell/day memberships and cell shapes. No raw FIRMS rows are stored.</desc>
+<rect width="900" height="450" fill="#f0f3ec"/>
+<g font-family="system-ui,sans-serif" fill="#19312e">
+<text x="30" y="42" font-size="24" font-weight="700">All-date FIRMS database · schema 2</text>
+<text x="30" y="68" font-size="14">Processed cell shapes and dates only · coverage unknown</text>
+<g transform="translate(30 110)"><rect width="250" height="265" rx="12" fill="#fffef9" stroke="#17634e" stroke-width="2"/><path d="M0 48h250" stroke="#17634e" stroke-width="2"/><text x="16" y="31" font-size="18" font-weight="700">hotspot_cell</text><text x="16" y="82" font-size="14" font-weight="700">PK grid_version</text><text x="16" y="110" font-size="14" font-weight="700">PK cell_id</text><text x="16" y="150" font-size="13">column_index · row_index</text><text x="16" y="178" font-size="13">projected cell bounds</text><text x="16" y="206" font-size="13">WGS84 center</text><text x="16" y="234" font-size="13">full GeoJSON geometry</text></g>
+<g transform="translate(325 110)"><rect width="250" height="265" rx="12" fill="#fffef9" stroke="#17634e" stroke-width="2"/><path d="M0 48h250" stroke="#17634e" stroke-width="2"/><text x="16" y="31" font-size="18" font-weight="700">hotspot_cell_day</text><text x="16" y="82" font-size="13" font-weight="700">PK release_id · date</text><text x="16" y="110" font-size="13" font-weight="700">PK grid_version · cell_id</text><text x="16" y="154" font-size="13">one active membership</text><text x="16" y="182" font-size="13">per cell and UTC day</text><text x="16" y="226" font-size="12">FK to daily summary and cell</text></g>
+<g transform="translate(620 110)"><rect width="250" height="265" rx="12" fill="#fffef9" stroke="#17634e" stroke-width="2"/><path d="M0 48h250" stroke="#17634e" stroke-width="2"/><text x="16" y="31" font-size="18" font-weight="700">daily_hotspot_summary</text><text x="16" y="82" font-size="14" font-weight="700">PK release_id · date</text><text x="16" y="126" font-size="13">area_id = world</text><text x="16" y="154" font-size="13">active_cell_count</text><text x="16" y="182" font-size="13">coverage_unknown status</text><text x="16" y="210" font-size="13">records_present / no_records</text></g>
+<path d="M325 244H280M575 244H620" stroke="#4c6e9b" stroke-width="2"/><text x="30" y="420" font-size="14">Area totals are computed from cell centers and dated memberships; raw detections are not stored.</text>
+</g></svg>

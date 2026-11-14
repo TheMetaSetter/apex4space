@@ -4,17 +4,11 @@ import argparse
 import hashlib
 import json
 import sqlite3
+import sys
 from contextlib import closing
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
-
-from app.cells import CellRecord, DailyHotspotSummary, CellPreparationSettings, load_cell_settings
-from app.models import load_settings
-from app.sources import _read_progress, read_source
-from app.storage import (
-    _cell_json, _read_connection, load_release, read_cell_manifest,
-    read_hotspot_cells, read_hotspot_summary,
-)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,12 +16,90 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--settings", type=Path, default=PROJECT_ROOT / "config" / "settings.json")
-    parser.add_argument("--release-id", required=True)
+    parser.add_argument("--release-id")
     parser.add_argument("--processed", action="store_true")
-    return parser.parse_args(argv)
+    parser.add_argument("--schema2-release-dir", type=Path)
+    args = parser.parse_args(argv)
+    if not args.release_id and not args.schema2_release_dir:
+        parser.error("--release-id or --schema2-release-dir is required")
+    return args
+
+
+def _firms_logical_hashes(connection):
+    tables = {
+        "daily_hotspot_summary": ("release_id,date,area_id,active_cell_count,status,input_state", "release_id,date"),
+        "hotspot_cell": ("grid_version,cell_id,column_index,row_index,min_x_m,min_y_m,max_x_m,max_y_m,center_longitude,center_latitude,geometry_json", "grid_version,cell_id"),
+        "hotspot_cell_day": ("release_id,date,grid_version,cell_id", "release_id,date,grid_version,cell_id"),
+    }
+    output = []
+    for name, (fields, order) in tables.items():
+        count = connection.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
+        digest = hashlib.sha256(b"apex4space.firms.logical.v1\0" + name.encode() + b"\0" + count.to_bytes(8, "big"))
+        for row in connection.execute(f"SELECT {fields} FROM {name} ORDER BY {order}"):
+            raw = json.dumps(row, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+            digest.update(len(raw).to_bytes(8, "big")); digest.update(raw)
+        output.append({"name": name, "rows": count, "sha256": digest.hexdigest()})
+    payload = {"hash_version": "apex4space.firms.logical.v1", "schema_version": 2,
+        "grid_policy_version": "firms-ease-10km-v2", "reduction_policy_version": "union-valid-cell-day-v1",
+        "tables": sorted(output, key=lambda row: row["name"])}
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    return payload, hashlib.sha256(raw).hexdigest()
+
+
+def check_firms_release(directory: Path) -> dict[str, object]:
+    """Independently verify a schema-2 database without loading rows into lists."""
+    directory = directory.resolve(strict=True)
+    manifest = json.loads((directory / "manifest.json").read_bytes())
+    validation = json.loads((directory / "validation.json").read_bytes())
+    if manifest.get("schema_version") != 2 or len(manifest.get("release_id", "")) != 64:
+        raise ValueError("schema-2 release metadata is invalid")
+    sources = manifest.get("sources", [])
+    if not sources or any(len(item.get("sha256", "")) != 64 for item in sources):
+        raise ValueError("source hash inventory is missing or invalid")
+    source_hashes = sorted({item["sha256"] for item in sources})
+    release = {"schema_version": 2, "grid_policy_version": "firms-ease-10km-v2",
+        "reduction_policy_version": "union-valid-cell-day-v1", "source_sha256s": source_hashes}
+    release_id = hashlib.sha256(json.dumps(release, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
+    if release_id != manifest["release_id"]:
+        raise ValueError("content release ID does not match source hashes")
+    db = directory / "database.sqlite3"
+    with closing(sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)) as connection:
+        connection.execute("PRAGMA foreign_keys=ON")
+        if connection.execute("PRAGMA user_version").fetchone()[0] != 2:
+            raise ValueError("SQLite schema version is not 2")
+        names = sorted(row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"))
+        if names != ["daily_hotspot_summary", "hotspot_cell", "hotspot_cell_day"]:
+            raise ValueError("schema-2 database must contain exactly three processed tables")
+        columns = {
+            "daily_hotspot_summary": "release_id,date,area_id,active_cell_count,status,input_state",
+            "hotspot_cell": "grid_version,cell_id,column_index,row_index,min_x_m,min_y_m,max_x_m,max_y_m,center_longitude,center_latitude,geometry_json",
+            "hotspot_cell_day": "release_id,date,grid_version,cell_id",
+        }
+        if any(",".join(row[1] for row in connection.execute(f"PRAGMA table_info({table})")) != expected
+               for table, expected in columns.items()):
+            raise ValueError("schema-2 table columns do not match the processed contract")
+        indexes = sorted(row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"))
+        if indexes != ["hotspot_cell_center", "hotspot_cell_day_cell_date"] or connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ValueError("database indexes or SQLite integrity check failed")
+        if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+            raise ValueError("database contains a foreign-key violation")
+        mismatches = connection.execute("SELECT count(*) FROM daily_hotspot_summary d WHERE d.release_id!=? OR d.active_cell_count!=(SELECT count(*) FROM hotspot_cell_day m WHERE m.release_id=d.release_id AND m.date=d.date)", (release_id,)).fetchone()[0]
+        start, end, days = connection.execute("SELECT min(date),max(date),count(*) FROM daily_hotspot_summary").fetchone()
+        if mismatches or start != manifest["date_start"] or end != manifest["date_end"] or days != (date.fromisoformat(end) - date.fromisoformat(start)).days + 1:
+            raise ValueError("daily counts or dense date coverage do not match manifest")
+        hashes, logical = _firms_logical_hashes(connection)
+    if hashes != manifest.get("table_hashes") or logical != manifest.get("logical_sha256") or logical != validation.get("logical_sha256"):
+        raise ValueError("logical table hashes do not match release metadata")
+    if manifest["rows_read"] != manifest["rows_assigned"] or sum(item["rows_read"] for item in sources) != manifest["rows_read"]:
+        raise ValueError("source row accounting does not reconcile")
+    return {"release_id": release_id, "rows_read": manifest["rows_read"],
+        "cell_count": hashes["tables"][1]["rows"], "membership_count": hashes["tables"][2]["rows"],
+        "daily_count": days, "logical_sha256": logical, "status": "passed"}
 
 
 def check_release(settings, release_id: str) -> dict[str, object]:
+    from app.sources import _read_progress, read_source
+    from app.storage import load_release
     manifest = load_release(settings.storage.database_path, release_id)
     progress = _read_progress(settings.storage.staging_path)
     indexed = {item.source_file_id: item for item in manifest.source_files}
@@ -63,8 +135,10 @@ def check_release(settings, release_id: str) -> dict[str, object]:
             "status": "passed"}
 
 
-def check_processed_release(settings: CellPreparationSettings, release_id: str) -> dict[str, object]:
+def check_processed_release(settings, release_id: str) -> dict[str, object]:
     """Check processed metadata, exact table names, references, and data hash."""
+    from app.cells import DailyHotspotSummary
+    from app.storage import _cell_json, _read_connection, read_cell_manifest, read_hotspot_cells
     manifest = read_cell_manifest(settings.storage.releases_path, release_id)
     with closing(_read_connection(settings.storage.database_path)) as connection:
         table_names = {row[0] for row in connection.execute(
@@ -109,9 +183,18 @@ def check_processed_release(settings: CellPreparationSettings, release_id: str) 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_arguments(argv)
     try:
-        settings = load_cell_settings(args.settings) if args.processed else load_settings(args.settings)
-        result = (check_processed_release(settings, args.release_id) if args.processed
-                  else check_release(settings, args.release_id))
+        if args.schema2_release_dir:
+            result = check_firms_release(args.schema2_release_dir)
+        elif not args.release_id:
+            raise ValueError("--release-id is required for the schema-1 checker")
+        else:
+            if str(PROJECT_ROOT) not in sys.path:
+                sys.path.insert(0, str(PROJECT_ROOT))
+            from app.cells import load_cell_settings
+            from app.models import load_settings
+            settings = load_cell_settings(args.settings) if args.processed else load_settings(args.settings)
+            result = (check_processed_release(settings, args.release_id) if args.processed
+                      else check_release(settings, args.release_id))
     except Exception as error:
         print(json.dumps({"status": "failed", "message": str(error)}, sort_keys=True))
         return 1

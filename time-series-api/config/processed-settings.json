@@ -19,8 +19,12 @@
   "end_date": "2026-09-02",
   "area_id": "south-america-pilot-rectangle",
   "platforms": ["Aqua", "Suomi-NPP"],
+  "local_source_files": {
+    "01_MODIS_C6/MODIS_Terra_Aqua_near_real_time_2026.csv": "MODIS_NRT",
+    "02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_near_real_time_2026.csv": "VIIRS_SNPP_NRT"
+  },
   "drive_source_ids": {
-    "18LjhjUjJ8vRokZcbc1O-d3k9TKldn4vk": "MODIS_SP",
+    "18LjhjUjJ8vRokZcbc1O-d3k9TKldn4vk": "MODIS_NRT",
     "1RzdWep7rqAQ--WdQWH1cp5X_pqeBIVBa": "VIIRS_SNPP_NRT"
   },
   "maximum_file_bytes": 83886080,

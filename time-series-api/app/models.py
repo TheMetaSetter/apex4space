@@ -331,6 +331,8 @@ class StorageSettings(ContractModel):
     temporary_bytes_limit: StrictInt
     cell_database_path: Path | None = None
     cell_releases_path: Path | None = None
+    global_release_path: Path | None = None
+    world_areas_path: Path | None = None
 
 class DownloadSettings(ContractModel):
     sources: tuple[str, ...]
@@ -496,7 +498,7 @@ def load_settings(path: Path) -> Settings:
         raise ValueError("settings file is too large")
     data = json.loads(content)
     project = Path(__file__).resolve().parents[1]
-    for name in ("database_path", "staging_path", "releases_path", "cell_database_path", "cell_releases_path"):
+    for name in ("database_path", "staging_path", "releases_path", "cell_database_path", "cell_releases_path", "global_release_path", "world_areas_path"):
         if data["storage"].get(name) is None:
             continue
         location = Path(data["storage"][name])

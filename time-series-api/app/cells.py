@@ -9,7 +9,7 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
 
 from app.models import AreaGeometry, BBox, ContractModel, StorageSettings, validate_bbox
 
@@ -119,8 +119,10 @@ class CellMapResponse(ContractModel):
     release_id: str
     grid_version: str
     date: date
+    requested_selector: Mapping[str, object]
     active_cell_count: int | None
     status: str
+    warnings: tuple[StrictStr, ...] = ()
 
 
 class CellReleaseManifest(ContractModel):
@@ -131,6 +133,8 @@ class CellReleaseManifest(ContractModel):
     end_date: date
     grid: GridSettings
     areas: Mapping[str, object]
+    platforms: tuple[StrictStr, ...] = ()
+    filter_rules: Mapping[str, object] = Field(default_factory=dict)
     sources: tuple[Mapping[str, object], ...]
     code_version: StrictStr
     catalog_sha256: StrictStr
@@ -159,6 +163,7 @@ class CellPreparationSettings(ContractModel):
     area_id: StrictStr
     platforms: tuple[StrictStr, ...]
     drive_source_ids: Mapping[StrictStr, StrictStr]
+    local_source_files: Mapping[StrictStr, StrictStr] = Field(default_factory=dict)
     maximum_file_bytes: StrictInt
     maximum_run_bytes: StrictInt
     maximum_memberships: StrictInt
@@ -169,6 +174,13 @@ class CellPreparationSettings(ContractModel):
             raise ValueError("invalid processing area or date range")
         if not self.platforms or len(set(self.platforms)) != len(self.platforms):
             raise ValueError("platforms must be nonempty and unique")
+        if any(Path(name).is_absolute() or ".." in Path(name).parts or not name.lower().endswith(".csv")
+               for name in self.local_source_files):
+            raise ValueError("local source file names must be relative CSV paths")
+        if any(source_id not in {"MODIS_NRT", "MODIS_SP", "VIIRS_SNPP_NRT", "VIIRS_SNPP_SP",
+                                 "VIIRS_NOAA20_NRT", "VIIRS_NOAA20_SP", "VIIRS_NOAA21_NRT", "VIIRS_NOAA21_SP"}
+               for source_id in self.local_source_files.values()):
+            raise ValueError("local source mapping contains an unknown FIRMS source")
         if not (0 < self.maximum_file_bytes <= 80 * 1024**2
                 and self.maximum_file_bytes <= self.maximum_run_bytes <= 256 * 1024**2
                 and 0 < self.maximum_memberships <= 100_000):
@@ -373,10 +385,14 @@ def make_cell_map(query: CellMapQuery, summary: DailyHotspotSummary,
     if (summary.release_id != query.release_id or summary.date != query.date
             or query.area_id is not None and summary.area_id != query.area_id):
         raise ValueError("summary does not match map query")
+    selector = ({"bbox": query.bbox} if query.bbox is not None
+                else {"area_id": query.area_id})
+    warnings = _cell_map_warnings(summary.status)
     if summary.hotspot_cell_ids is None:
         return CellMapResponse(features=(), release_id=query.release_id,
             grid_version=grid_version, date=query.date,
-            active_cell_count=None, status=summary.status)
+            requested_selector=selector, active_cell_count=None,
+            status=summary.status, warnings=warnings)
     by_id = {cell.cell_id: cell for cell in cells}
     area_shape = shape(selection)
     bounds_shape = box(*query.bbox) if query.bbox else area_shape
@@ -398,4 +414,15 @@ def make_cell_map(query: CellMapQuery, summary: DailyHotspotSummary,
             raise ValueError("map contains more than 10,000 cells")
     return CellMapResponse(features=tuple(features), release_id=query.release_id,
         grid_version=grid_version, date=query.date,
-        active_cell_count=len(features), status=summary.status)
+        requested_selector=selector, active_cell_count=len(features),
+        status=summary.status, warnings=warnings)
+
+
+def _cell_map_warnings(status: str) -> tuple[str, ...]:
+    if status == "coverage_unknown":
+        return ("Observation coverage is unknown for this date.",)
+    if status == "partial":
+        return ("Only partial source input is available for this date.",)
+    if status == "missing":
+        return ("No source input is available for this date.",)
+    return ()

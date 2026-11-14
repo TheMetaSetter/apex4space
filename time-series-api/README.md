@@ -1,185 +1,162 @@
 # Time-series API
 
-This API is under development. The cell map works with the saved local sample.
-The Drive pilot is pending a fresh Google Drive token.
+_Processed emergency responder hotspot cell pilot · 14 November 2026_
 
-## Setup
+---
 
-Run these commands from the repository root:
+## 📌 Current pilot
 
-```bash
-uv pip install --python .venv/bin/python -e './time-series-api[test]'
-.venv/bin/python -m pytest time-series-api/tests -q
-```
+The verified processed release is `responder-local-pilot-2026-09-01-v1`. It covers 2026-09-01 UTC, the reviewed South America pilot rectangle, a 10 km EPSG:8857 grid, and the Aqua and Suomi-NPP platforms.
 
-The settings file is `config/settings.json`. Paths in this file are relative to
-`time-series-api/`. The file contains no keys. A FIRMS key is needed only for
-a live download. Serving also needs a private `CURSOR_SECRET`.
+The release stores two active cells and one daily summary. Its status is `coverage_unknown`: these inputs do not include observation-opportunity data, so a count of zero would not establish that no fire was present.
 
-The current settings use rectangle `[106, 10, 107, 11]` and the single day
-`2026-09-01`. They select `VIIRS_SNPP_NRT` and the checked source-only release
-`responder-viirs-empty-2026-09-01-v1`. Its saved FIRMS response has a valid
-header and zero rows. This is not evidence of a clear-sky day: coverage is
-unknown and the release has no available metrics. Do not use it for a fire
-severity decision.
+This run used the downloaded local files selected in `config/processed-settings.json`. It made no Google Drive API or FIRMS network requests. The allowlist includes only the MODIS Terra/Aqua NRT 2026 CSV and VIIRS Suomi-NPP NRT 2026 CSV. Archive files and other sensors are outside this pilot.
 
-## Test data
+## ⚙️ Prepare the local pilot
 
-The CSV files in `tests/fixtures/` contain invented data. `observations.csv`
-uses a small FIRMS MODIS-style schema. `opportunities.csv` is a test
-interchange format: it stores GeoJSON areas in CSV fields. It is not a native
-satellite product and does not prove actual coverage.
-
-The CSV reader uses the field names and satellite codes in the NASA
-[MODIS](https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_MODIS_Firehotspots.html)
-and [VIIRS](https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_VIIRS_Firehotspots.html)
-descriptions. It keeps the original fields and full row versions. MODIS
-`brightness` and `bright_t31` map to channels 21/22 and 31. VIIRS
-`bright_ti4` or `brightness` maps to I4; `bright_ti5` or `brightness_2` maps
-to I5. A VIIRS export field named `bright_t31` is kept as unverified. A VIIRS
-I4 value of 367 K is marked as a possible sensor limit; the value stays
-unchanged.
-
-## Processed cell dataset
-
-The processed path stores only `hotspot_cell` and `daily_hotspot_summary` in
-`data/processed.sqlite3`. The separate legacy database is unchanged. Release
-hashes and source details stay in small JSON files.
-
-The checked local sample can build a small map release:
+Run from `time-series-api/`. Set `FIRMS_INPUT_DIR` to the already downloaded local FIRMS folder. The settings file selects exact relative paths; the command does not ingest every file under that root.
 
 ```bash
-.venv/bin/python time-series-api/scripts/prepare_data.py --settings time-series-api/config/processed-settings.json --release-id local-sample-v1 --input-csv time-series-api/data/samples/sample_viirs_snpp_071223.csv --source-id VIIRS_SNPP_NRT --start-date 2023-07-12 --end-date 2023-07-13 --area-id sample-africa --platforms Suomi-NPP
+python scripts/prepare_data.py \
+  --settings config/processed-settings.json \
+  --release-id responder-local-pilot-2026-09-01-v1 \
+  --input-dir "$FIRMS_INPUT_DIR"
 ```
 
-Check its metadata and tables:
+Validate the published database and release metadata:
 
 ```bash
-.venv/bin/python time-series-api/scripts/check_results.py --settings time-series-api/config/processed-settings.json --release-id local-sample-v1 --processed
+python scripts/check_results.py \
+  --settings config/processed-settings.json \
+  --release-id responder-local-pilot-2026-09-01-v1 \
+  --processed
 ```
 
-The sample produced 1,720 hotspot cells for 2023-07-12. Coverage is unknown;
-this is a software pilot, not a fire or sensor-coverage claim. The web route
-reads these two tables only:
+The processed database is `data/processed.sqlite3`; release manifests and validation records are in `data/processed-releases/`. The database has exactly two user tables: `hotspot_cell` and `daily_hotspot_summary`. The separate legacy database `data/service.sqlite3` is not modified.
+
+Preparation writes temporary compact `.cells.json` checkpoints after each source passes its full-stream hash and unchanged-file checks. The checked release contains no CSV copy, raw row, row identifier list, FRP value, or raw-data table. The pilot checkpoints are removed after validation.
+
+## 🗃️ Processed schema
+
+| Table | Primary key | Stored fields |
+| --- | --- | --- |
+| `hotspot_cell` | `(grid_version, cell_id)` | Cell center in longitude/latitude and full GeoJSON polygon geometry. |
+| `daily_hotspot_summary` | `(release_id, area_id, date)` | Nullable active-cell count, nullable sorted unique cell IDs, and day status. |
+
+A release manifest binds the grid version and prepared area to source versions and hashes. Summary IDs resolve to cell shapes using that grid version; preprocessing checks the references. The ID list is not a SQL foreign key.
+
+The state values distinguish known zero, missing input, partial input, available observations, and unknown coverage. The pilot’s one day is marked `coverage_unknown`.
+
+## 📚 Input data dictionary
+
+Each source row is one transient satellite hotspot detection record. The spatial reduction assigns its center to one equal-area grid cell. Records from the selected platforms and passes that land in the same cell on the same UTC day count once in the daily summary.
+
+| Field | Meaning and units | Processing use |
+| --- | --- | --- |
+| `latitude`, `longitude` | Nominal fire-pixel center in degrees; coordinates identify a pixel center, not a confirmed ground fire point. [^1][^2] | Validated and projected into EPSG:8857; source coordinates are not stored. |
+| `acq_date`, `acq_time` | Acquisition date and UTC time. [^1][^2] | Parsed to UTC and reduced to the declared UTC day. |
+| `satellite` | Source satellite code; Aqua/Terra for MODIS and S-NPP/other platform codes for VIIRS. [^1][^2] | Validated against the allowlisted product and selected platforms. |
+| `instrument` | Source instrument/platform label. | Checked against the selected product/platform mapping; not stored. |
+| `version` | Collection plus processing mode such as NRT/URT. [^1][^2] | Every row is checked for a consistent collection base; compact version labels are retained in release metadata. |
+| Brightness, scan/track, confidence, FRP, day/night, and type fields | Product-specific temperatures, pixel dimensions, confidence, fire radiative power, or labels. MODIS and VIIRS channels are not interchangeable. FRP is reported in MW by NASA. [^1][^2] | Headers are checked where applicable; these values are not used by the cell-count reducer and are not persisted. |
+
+The observational hierarchy is detections → platform/pass and UTC time → cell/day memberships → one area/day summary. There are no subjects, replicates, treatment groups, or train/test split in this descriptive preprocessing. There is no coverage denominator. A missing day, partial source selection, zero count, and unknown coverage remain distinct; no values are imputed.
+
+## 🌐 Query the processed map
+
+The endpoint accepts exactly one prepared area or a containing EPSG:4326 bounding box, plus one UTC date:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/hotspots/cells/query \
   -H 'Content-Type: application/json' \
-  -d '{"release_id":"local-sample-v1","date":"2023-07-12","area_id":"sample-africa"}'
+  -d '{"release_id":"responder-local-pilot-2026-09-01-v1","date":"2026-09-01","area_id":"south-america-pilot-rectangle"}'
 ```
 
-The response has one GeoJSON feature per hotspot cell and `active_cell_count`.
-OpenLayers can read the feature geometries as EPSG:4326.
+The response is a GeoJSON FeatureCollection with one polygon feature per selected cell, an `active_cell_count`, the selector, status, and warnings. GeoJSON positions use longitude/latitude (EPSG:4326). In OpenLayers, set `dataProjection: 'EPSG:4326'`, transform to the map view projection, and draw the cell layer above the basemap.
 
-The Drive command uses an explicit folder ID and reads
-`GOOGLE_DRIVE_ACCESS_TOKEN` from the environment or repository `.env`:
+The processed route reads the two local tables and checked release metadata only. Legacy point, science, and export routes remain separate; processed releases return an explicit unsupported-dataset error for those raw/science paths.
+
+## 📊 Pilot measurements
+
+| Measure | Result |
+| --- | ---: |
+| Local source bytes scanned | 79,036,082 |
+| CSV rows scanned | 929,011 |
+| Rows used after date/platform/area selection | 3 |
+| Cell/day memberships after deduplication | 2 |
+| Unique hotspot cells | 2 |
+| Saved processed database plus release metadata | 14,623 bytes |
+| Python peak traced memory | 1,434,050 bytes |
+| Peak resident memory | 75,759,616 bytes |
+| Preparation elapsed time | 32.915 seconds |
+| Published daily summaries | 1 |
+
+The full command output is recorded in [the pilot report](../documents/logs/2026-11-14/detail/responder-hotspot-pilot-report.md). These are measurements for this narrow one-day pilot, not performance claims for archives or larger regions.
+
+## 🧪 Verification
+
+The earlier pilot check collected and passed 30 cases. The current suite has 40 passing cases, including schema-2 importer and area-query checks. The offline API checks call processed routes without reading CSV files or contacting Drive/FIRMS.
+
+Run the suite from `time-series-api/`:
 
 ```bash
-.venv/bin/python time-series-api/scripts/prepare_data.py --settings time-series-api/config/processed-settings.json --release-id drive-pilot-v1 --drive-folder-id 1_RbaB1o7lrmOlzsp8CGq34Oe_rQ_lKMc
+python -m pytest tests --collect-only -q
+python -m pytest tests -q
 ```
 
-The current token is expired. Refresh it before using this command. It reads
-only the two CSV IDs in `processed-settings.json` and does not read ZIPs or
-notebooks.
+## ⚠️ Scope and review
 
-## Legacy source commands
+The schema-1 pilot above still represents two selected NRT files for one day and one rectangle. The separate schema-2 release below processes all nine downloaded files and all dates. Neither release establishes complete geographic coverage, fire perimeters, independent fire events, sensor equivalence, or FRP comparability.
 
-Run these from the repository root after setting a checked source, area, and
-date window in `time-series-api/config/settings.json`:
+The API and stored data have been checked offline. Visible Leaflet rendering with EPSG:6933 and the plain world background still needs visual review; this remains pending.
+
+## 🔗 References
+
+[^1]: NASA FIRMS. [MODIS Fire and Thermal Anomalies attribute descriptions](https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_MODIS_Firehotspots.html).
+
+[^2]: NASA FIRMS. [VIIRS Fire and Thermal Anomalies attribute descriptions](https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_VIIRS_Firehotspots.html).
+
+## All-date FIRMS release
+
+The separate schema-2 database uses every valid row from the nine CSV files
+inside the downloaded FIRMS folder. It covers 2000-11-01 through 2026-11-11.
+The input files stay where they are; the importer reads them locally and does
+not call Google Drive or FIRMS.
+
+Use the standalone importer with any CSV file or folder. It finds CSVs in
+subfolders, reads every date and sensor, and writes a new release directory:
 
 ```bash
-.venv/bin/python time-series-api/scripts/fetch_data.py
-.venv/bin/python time-series-api/scripts/prepare_data.py --release-id pilot-source-v1
-.venv/bin/python time-series-api/scripts/check_results.py --release-id pilot-source-v1
+python scripts/preprocess_firms.py \
+  --input /path/to/firms-csv-folder \
+  --output-dir data/global-releases/new-release
 ```
 
-The settings file is the default for all three commands. `--settings PATH` is
-an explicit override. `--release-id` is required for preparation and checks.
-Downloads use a 30-second timeout and up to two retries. They pause at 4,000
-reported transactions in the provider's 600-second window. A single download
-can use at most 2 GiB of temporary storage; saved source files can use at most
-500 MiB. Source CSVs are read in batches of 1,000 rows. The configured maximum
-input size is 100,000 rows.
-The current settings contain one source ID. Seven FIRMS HTTP requests have
-been used for this work: five exploration requests, then two approved resume
-checks. The last two checked status and availability, then reused the saved
-file. They did not request fire rows. Do not run the fetch command again
-unless the team allows more requests. The fetch command reads
-`FIRMS_MAP_KEY` from the environment first, then the repository `.env`; never
-pass it as an argument.
-It checks the provider's transaction count. An availability request reserves
-five transactions, based on NASA's usage example.
-
-Preparation publishes source rows only. It advertises no daily metric until
-a grid and a checked method are available. The check command verifies the
-published release and its saved source files. It does not rewrite a report.
-
-## Saved empty response check
-
-The saved one-day VIIRS response is 122 bytes with zero data rows. Its hash is
-`2b11a44667d05367ecf77651b95fd3d34c545c7ec154856094b91245e41ae697`.
-The original sample request took 1.363 seconds. The five-request exploration
-ended at 9 reported transactions on a shared key. The approved resume command
-made two HTTP requests and did not measure the transaction change. It reused
-the saved response, took 2.48 seconds, and used at most 49,430,528 bytes of
-resident memory. No third request was made to read the shared counter.
-Preparation and integrity checks passed for the source-only release. A local
-API check returned an empty GeoJSON point page with `has_more=false`; the CSV
-export had the same zero rows. There were no source records to compare by ID,
-date, or FRP. The release has no analysis metrics, and the map response does
-not provide coverage. Treat this result as unknown coverage.
-
-## Early web requests
-
-These requests use invented values. Replace `local-release` with a published
-release ID. Send rectangle bounds in EPSG:4326 order: west, south, east, north.
+The output folder must not already exist. It contains `database.sqlite3`,
+`manifest.json`, and `validation.json`. Check a release with:
 
 ```bash
-curl http://127.0.0.1:8000/v1/metrics
+python scripts/check_results.py --schema2-release-dir data/global-releases/new-release
 ```
 
-```bash
-curl -X POST http://127.0.0.1:8000/v1/analysis \
-  -H 'Content-Type: application/json' \
-  -d '{"release_id":"local-release","bbox":[106,10,107,11],"start_date":"2024-03-01","end_date":"2024-03-02","metric":"observed_hotspot_count","aggregation":"day","platforms":["Aqua"]}'
+The current checked release is `data/global-releases/firms-v2`. Its ID is
+`8796890e848f8a9ffb0ad255919fb7c469cdf6e0154fc50101139fd57dce6a49`. The
+SQLite file has three processed tables: `hotspot_cell`, `hotspot_cell_day`,
+and `daily_hotspot_summary`. It stores cell/day membership, not raw rows.
+
+The area API currently accepts Viet Nam (`VN`, `VNM`, `Vietnam`, `Viet Nam`,
+`Việt Nam`) and South America. A cell is included when its center is inside
+the exact saved area polygon. GeoJSON uses longitude/latitude. Counts and
+empty days carry `coverage_unknown`; a zero count does not mean no fire.
+Requests return up to 10,000 cells per page and daily summaries for up to 366
+days. Leaflet must set its map projection separately; ordinary GeoJSON stays
+EPSG:4326 even when the map uses EPSG:6933.
+
+```json
+{"release_id":"8796890e848f8a9ffb0ad255919fb7c469cdf6e0154fc50101139fd57dce6a49","area_name":"South America","date":"2026-11-11","page_size":1000}
 ```
 
-```bash
-curl -X POST http://127.0.0.1:8000/v1/hotspots/query \
-  -H 'Content-Type: application/json' \
-  -d '{"release_id":"local-release","bbox":[106,10,107,11],"start_date":"2024-03-01","end_date":"2024-03-02","platforms":["Aqua"],"page_size":1000}'
-```
-
-When `has_more` is true, send the returned `next_cursor` with the same point
-query to get the next page. A cursor is valid only for that query.
-
-Download the same rectangle as CSV:
-
-```bash
-curl -X POST http://127.0.0.1:8000/v1/exports \
-  -H 'Content-Type: application/json' \
-  -d '{"release_id":"local-release","bbox":[106,10,107,11],"start_date":"2024-03-01","end_date":"2024-03-02","kind":"observations","format":"csv","platforms":["Aqua"]}' \
-  -o time-series-observations.csv
-```
-
-For analysis JSON, use the analysis fields above and add
-`"kind":"analysis","format":"json"`. These download values are invented.
-
-The generated schema is in [`openapi.json`](openapi.json). It is built from a
-temporary test release and checked against `/openapi.json`; it has no live data
-or keys. The live server needs a selected release before it can start. Record
-web developer feedback during the later map handoff.
-
-### Web review status
-
-The web developer approved only the emergency responder map feature. The
-rectangle request and point paging are covered by that approval. The developer
-has not approved downloads. The map review closes the map-focused review in T6;
-download review remains for the full web handoff in T13. Please check that the
-examples can:
-
-1. **Approved in T6: emergency responder map.** Send a rectangle query with longitude and latitude in the correct order; read hotspot points and request the next page with the returned cursor.
-2. **Pending for T13: downloads.** Download the same selection as CSV or analysis JSON.
-
-Record any confusing field or failed request here after review. The examples use
-invented values; a live request also needs a selected release.
+Send this to `POST /v2/hotspots/query`. The full active count is `1083`; the
+first page returns 1000 cells and the next returns 83 with the same count.
+Use `POST /v2/hotspots/summaries/query` for daily counts, with an exclusive
+`end_date`.

@@ -49,6 +49,10 @@ def test_source_reader_keeps_text_versions(tmp_path):
     assert viirs_batch.observations[0].platform == "Suomi-NPP"
     assert {band.band_name for band in viirs_batch.bands} == {"VIIRS_I4", "VIIRS_I5"}
     assert [item.original_fields["version"] for item in viirs_batch.observations] == ["2.0NRT", "2.0URT"]
+    npp_instrument = tmp_path / "viirs-npp-instrument.csv"
+    npp_instrument.write_text(viirs.read_text().replace(",N,VIIRS,", ",N,S-NPP,"))
+    npp_source = replace(viirs_source, sha256=hashlib.sha256(npp_instrument.read_bytes()).hexdigest())
+    assert list(sources.read_source(npp_instrument, npp_source, batch_size=2))[0].observations[0].platform == "Suomi-NPP"
     assert next(band for band in viirs_batch.bands if band.band_name == "VIIRS_I4").flags == ("possible_sensor_limit",)
     assert sources._platform({"satellite": "N20", "instrument": "VIIRS"},
                              replace(viirs_source, source_id="VIIRS_NOAA20_NRT")) == "NOAA-20"
@@ -206,7 +210,7 @@ def test_batches_keep_provenance(tmp_path, monkeypatch):
     assert processed.bytes_read == len(csv_bytes) and len(processed.sha256) == 64
 
 
-def test_fetch_windows_checks_budget_and_resumes(monkeypatch, tmp_path):
+def test_fetch_windows_checks_budget_and_resumes(monkeypatch, tmp_path, local_source_check):
     sources = import_module("app.sources")
     models = import_module("app.models")
     settings_path = Path(__file__).parents[1] / "config" / "settings.json"
@@ -472,6 +476,12 @@ def test_fetch_windows_checks_budget_and_resumes(monkeypatch, tmp_path):
                 "--release-id", "local-sample-v1", "--input-csv", str(sample_path),
             ])
             assert local_args.input_csv == sample_path
+            local_directory = tmp_path / "downloaded-firms"
+            directory_args = module.parse_arguments([
+                "--release-id", "local-folder-v1", "--input-dir", str(local_directory),
+            ])
+            assert directory_args.input_dir == local_directory
+            local_source_check(tmp_path)
             with pytest.raises(SystemExit):
                 module.parse_arguments(["--release-id", "bad", "--input-csv", str(sample_path),
                                         "--drive-folder-id", "folder"])

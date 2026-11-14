@@ -173,13 +173,13 @@ def _fetch_window(client: httpx.Client, key: str, source_id: str, start: date,
                   progress: dict[str, dict[str, str]]) -> SourceFileRecord:
     end = start + timedelta(days=days)
     identity = f"{source_id}:{start.isoformat()}:{end.isoformat()}"
-    west, south, east, north = settings.downloads.bbox
-    bbox = ",".join(str(value) for value in (west, south, east, north))
+    bbox = ",".join(map(str, settings.downloads.bbox))
     saved = progress.get(identity)
     if saved:
         name, digest = saved.get("file", ""), saved.get("sha256", "")
         path = root / name
-        if saved.get("bbox") != bbox or Path(name).name != name or path.is_symlink() or not path.is_file():
+        if (saved.get("bbox") != bbox or Path(name).name != name
+                or path.is_symlink() or not path.is_file()):
             raise RuntimeError("saved download path is unsafe")
         if _sha256(path) == digest:
             downloaded_at = datetime.fromisoformat(saved["downloaded_at"])
@@ -195,35 +195,27 @@ def _fetch_window(client: httpx.Client, key: str, source_id: str, start: date,
         try:
             with client.stream("GET", url, timeout=settings.downloads.timeout_seconds) as response:
                 response.raise_for_status()
-                if "text/csv" not in response.headers.get("content-type", "").lower():
-                    raise RuntimeError("FIRMS returned a non-CSV response")
+                if "text/csv" not in response.headers.get("content-type", "").lower(): raise RuntimeError("FIRMS returned a non-CSV response")
                 written = _saved_bytes(root)
                 with partial.open("wb") as stream:
                     for chunk in response.iter_bytes(65536):
                         written += len(chunk)
-                        if written > settings.storage.temporary_bytes_limit:
-                            raise RuntimeError("temporary download limit reached")
+                        if written > settings.storage.temporary_bytes_limit: raise RuntimeError("temporary download limit reached")
                         stream.write(chunk)
             record = _downloaded_record(partial, source_id, start, end, settings)
             if _saved_bytes(root) > settings.storage.saved_bytes_limit:
                 raise RuntimeError("saved download limit reached")
             os.replace(partial, path)
-            progress[identity] = {
-                "file": path.name, "sha256": record.sha256,
-                "bbox": ",".join(str(value) for value in settings.downloads.bbox),
-                "source": source_id, "start_date": start.isoformat(), "end_date": end.isoformat(),
-                "downloaded_at": record.downloaded_at.isoformat(),
-            }
+            progress[identity] = {"file": path.name, "sha256": record.sha256,
+                "bbox": bbox, "source": source_id, "start_date": start.isoformat(),
+                "end_date": end.isoformat(), "downloaded_at": record.downloaded_at.isoformat()}
             _write_progress(root, progress)
             return record
-        except RuntimeError as error:
-            partial.unlink(missing_ok=True)
-            if attempt == settings.downloads.retry_limit:
-                raise RuntimeError(str(error)) from None
         except Exception as error:
             partial.unlink(missing_ok=True)
             if attempt == settings.downloads.retry_limit:
-                raise RuntimeError("FIRMS window download failed") from None
+                raise RuntimeError(str(error) if isinstance(error, RuntimeError)
+                                   else "FIRMS window download failed") from None
     raise RuntimeError("FIRMS window download failed")
 
 def fetch_windows(settings) -> Iterator[SourceFileRecord]:
@@ -303,9 +295,18 @@ def _band_fields(names: Sequence[str], product: str) -> dict[str, str]:
     return columns
 
 
+def _instrument_matches(value: str, source: SourceFileRecord, platform: str) -> bool:
+    instrument = value.strip().upper()
+    if not instrument or instrument == source.product:
+        return True
+    compact = "".join(character for character in instrument if character.isalnum())
+    family = source.source_id.rsplit("_", 1)[0]
+    return family == "VIIRS_SNPP" and platform == "Suomi-NPP" and "SNPP" in compact
+
+
 def _platform(row: Mapping[str, str], source: SourceFileRecord) -> str:
     name = PLATFORMS.get(source.product, {}).get(row["satellite"])
-    if name is None or (row.get("instrument") and row["instrument"] != source.product):
+    if name is None or not _instrument_matches(row.get("instrument", ""), source, name):
         raise ValueError("unknown satellite or mismatched instrument")
     source_family = source.source_id.rsplit("_", 1)[0]
     expected = SOURCE_PLATFORMS[source_family]

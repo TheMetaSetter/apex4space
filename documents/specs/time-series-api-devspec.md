@@ -1,14 +1,12 @@
 # time-series-api — Development Spec
 
-Version: 0.5 | Date: 2026-11-14 | Status: Draft
+Version: 0.6 | Date: 2026-11-14 | Status: Execution in progress
 
-This revision records the team's cell-width and daily FRP choices. It also
-keeps the earlier choices of OpenLayers and small saved API samples. These
-choices define a test plan; they do not prove that an FRP comparison works.
-Section 15 records naming and scope changes.
-
-The dated schema draft in §10.6 records later team choices. It extends the
-planned map scope; it does not claim that the database or OpenAPI has changed.
+This spec records the team's cell-width and daily FRP choices, the implemented
+schema-1 OpenLayers pilot in §10.6, and the separately authorized all-date
+schema-2 FIRMS importer and Leaflet API path in §10.7. FRP comparability and
+visible Leaflet map rendering still require separate validation. Section 15
+records naming and scope changes.
 
 ## 1. Goal
 
@@ -632,11 +630,12 @@ Check the full shape in cursor/query matching. OpenLayers sends geographic
 coordinates, not map-screen coordinates. No polygon request field, geometry
 library, or polygon-drawing feature is required for the MVP.
 
-### 10.6 Hotspot cell schema draft — 2026-11-14
+### 10.6 Hotspot cell schema and pilot implementation — 2026-11-14
 
-Status: processed-only MVP, requested by the user. No runtime migration has
-been applied. This section supersedes the earlier three-table proposal and
-raw-retention requirements for this MVP. Broader science work remains later.
+Status: the processed-only schema-1 path is implemented and a separate local
+pilot was published and checked. This section records that pilot only; §10.7
+defines the later all-date schema-2 release. It does not replace the legacy
+database or validate broader science work.
 
 #### Two small processed tables
 
@@ -648,10 +647,11 @@ raw-retention requirements for this MVP. Broader science work remains later.
 Do not create `cell_detection` or any raw observation table in the new dataset.
 No raw rows, FRP arrays, band values, or detection-to-cell links are retained
 locally after preprocessing. Keep only the processed cell/day sets and shapes.
-Original CSVs remain in Drive; a future raw-detail feature requires those sources.
-Existing user files/databases are not deleted by this documentation change.
+Original CSVs remain in the user-provided local input folder; preprocessing
+does not copy them into the processed dataset. Existing user files and the
+legacy database are not deleted by this work.
 
-Source file IDs, versions, full hashes, selected dates/platforms, area/catalog
+Source identities, versions, full hashes, selected dates/platforms, area/catalog
 hash, grid settings, code version, and completeness checks stay in small
 `manifest.json` and `validation.json` files. Store filter rules and counts,
 not lists of original row IDs or raw records. The area catalog remains a
@@ -660,17 +660,21 @@ Validate metadata and processed-data hashes before serving a release.
 
 #### Streaming preparation
 
-Input: selected CSVs in the [team Drive folder](https://drive.google.com/drive/folders/1_RbaB1o7lrmOlzsp8CGq34Oe_rQ_lKMc).
-Ignore ZIPs, notebooks, and other non-CSV content. Start with the checked
-MODIS/Suomi NRT file selection in the [Drive plan](../logs/2026-11-14/plan/plan-drive-csv-preprocessing.md).
+Input: exact relative CSV paths selected in
+time-series-api/config/processed-settings.json from the user-provided local
+FIRMS directory. This execution does not use the Google Drive API or make
+FIRMS network requests. The pilot allowlist selects only the MODIS Terra/Aqua
+NRT 2026 file and VIIRS Suomi-NPP NRT 2026 file; ZIPs, notebooks, archive CSVs,
+other sensors, and dates are not read.
 
 1. Stream bytes in small chunks; parse and check one CSV batch at a time.
 2. Convert each selected detection's center to its fixed grid cell.
 3. If the cell center is inside the prepared area, add its ID to that UTC
    day's set. This includes detections outside the area outline when their
    full cell is selected. Discard the raw row after this step.
-4. Verify the complete source stream, full hash, and unchanged Drive identity.
-   A failed or capped stream must not produce a published release.
+4. Verify EOF, complete byte count, full SHA-256, unchanged local file
+   identity, and consistent source version. A failed or capped stream must
+   not produce a published release.
 5. Union the selected files' daily sets. A cell seen by several platforms or
    passes counts once per day. Build shapes only for the union of active cells.
 6. Save each day's sorted unique IDs, their count, and status. Publish both
@@ -730,17 +734,231 @@ migrate the day column and key together. Keep geometry in a regular table.
 No time-series server or automatic retention job is needed now.
 
 For much larger areas or years, repeated JSON ID lists may outgrow the budget.
-Measure them before expanding. A later normalized cell/day table needs its
-own design review; do not add it to this MVP preemptively. Reprocessing raw
-features depends on access to the recorded Drive version; a file ID alone
-cannot guarantee that an older source version stays available.
+This warning applies to schema 1 only. Schema 2 in §10.7 uses a normalized
+cell/day table. Reprocessing still requires the original local CSVs; the
+schema-1 pilot does not guarantee that an older remote source remains available.
+
+### 10.7 All-date FIRMS release and named-area queries — schema 2
+
+Status: execution authorized on 2026-11-14. Build a separate, portable
+database from arbitrary user-selected FIRMS CSV files. Do not mutate the
+schema-1 pilot database or change its v1 route. The user approved the compact
+third processed table and requested every valid input row and acquisition date.
+
+#### Input and row accounting
+
+The standalone `scripts/preprocess_firms.py` accepts repeated `--input`
+arguments, each naming a CSV or recursively searched directory. Match `.csv`
+case-insensitively, sort and deduplicate canonical paths, and do not interpret
+filenames. Require normalized unique `latitude`, `longitude`, and `acq_date`
+headers. FIRMS CSV coordinates are geographic longitude/latitude in
+EPSG:4326; the files do not embed a CRS. NASA's CSV tutorial constructs
+geographic points in EPSG:4326. [NASA FIRMS visualization tutorial](https://firms.modaps.eosdis.nasa.gov/content/academy/data_visualization/firms_visualization.html)
+
+Read UTF-8/BOM CSV with strict row widths and bounded fields. Support quoted
+newlines and a missing final newline. Validate finite WGS84 coordinates,
+ISO date, and UTC acquisition time when present. Other FIRMS fields are
+optional provenance; unused brightness/channel names do not determine
+eligibility. A malformed required value or changed source fails the complete
+build with a file and record number. Never log raw rows or publish a partial
+database. All sensors, confidence classes, versions, dates, and hotspot types
+are included. No remote FIRMS or Google Drive request is made.
+
+Each valid source row increments its assigned-row count and contributes a
+`(release_id, date, grid_version, cell_id)` key. Duplicate keys across files,
+passes, sensors, or archive/NRT copies collapse to one membership. Distinct
+cells remain. `rows_read` must equal `rows_assigned`; invalid rows abort rather
+than being skipped. Record file paths, byte counts, full hashes, compact
+source labels, software/PROJ versions, and counts in release metadata, never
+raw input attributes.
+
+#### Schema-2 grids and database
+
+Use grid versions `firms-ease-global-10km-v2` (EPSG:6933),
+`firms-ease-north-10km-v2` (EPSG:6931), and
+`firms-ease-south-10km-v2` (EPSG:6932). Each uses a custom 10,000 m square
+lattice, origin `(0,0)`, integer floor
+indices, and half-open edges. Snap a projected coordinate within 1e-6 m of an
+integer lattice line to that line before `floor`; the exact edge belongs to
+the cell to its east/north. Canonicalize longitude +180° to −180° before
+projection. Transform with `always_xy=True`. Grid ownership
+is deterministic: EPSG:6933 owns latitude −86° through +86° inclusive;
+EPSG:6931 owns latitude greater than +86°; EPSG:6932 owns latitude less than
+−86°. These are custom cell lattices, not claims of native NSIDC pixel
+alignment. NSIDC identifies EPSG:6931/6932 as the northern/southern polar
+EASE-Grid projections and EPSG:6933 as global/temperate equal-area. [NSIDC, A Guide to EASE Grids](https://nsidc.org/data/user-resources/help-center/guide-ease-grids)
+
+`grid_version` is part of every cell key, so projected indices in different
+CRSs cannot collide. Canonicalize the ±180° seam, densify inverse-projected
+edges to at most 1,000 m between samples, normalize geometry order, validate
+finite coordinates, split antimeridian geometries, and clip EPSG:6933 geometry
+to its geographic validity domain. Preserve every valid
+polar row under the supplemental grids. An EPSG:6933 map cannot validly show
+the complete polar bands; APIs expose each feature's grid version and warn
+when polar features are outside that view.
+
+The schema-2 SQLite database contains exactly these three user tables:
+
+| Table | Primary key | Stored values |
+| --- | --- | --- |
+| `hotspot_cell` | `(grid_version, cell_id)` | Grid row/column, projected bounds, WGS84 center, and full GeoJSON cell geometry. |
+| `hotspot_cell_day` | `(release_id, date, grid_version, cell_id)` | Compact unique membership with foreign keys to cell geometry and global day. |
+| `daily_hotspot_summary` | `(release_id, date)` | `area_id='world'`, distinct global cell count, `coverage_unknown`, and `input_state`. |
+
+Use these exact fields. `hotspot_cell` stores `grid_version TEXT`,
+`cell_id TEXT`, `column_index INTEGER`, `row_index INTEGER`, `min_x_m REAL`,
+`min_y_m REAL`, `max_x_m REAL`, `max_y_m REAL`, `center_longitude REAL`,
+`center_latitude REAL`, and canonical `geometry_json TEXT`. Require finite
+numbers, ordered bounds, and a cell ID matching the two integer indices.
+`daily_hotspot_summary` stores `release_id TEXT`, ISO `date TEXT`,
+`area_id TEXT CHECK(area_id='world')`, nonnegative `active_cell_count INTEGER`,
+`status TEXT CHECK(status='coverage_unknown')`, and
+`input_state TEXT CHECK(input_state IN ('records_present','no_records'))`.
+`hotspot_cell_day` stores only `release_id`, ISO `date`, `grid_version`, and
+`cell_id`, all `NOT NULL`. Enforce its primary key and both foreign keys.
+Use `WITHOUT ROWID` for all three tables; geometry remains
+one row per unique active cell and raw CSV attributes are absent.
+
+Logical table hashes use UTF-8 canonical JSON arrays with compact separators,
+`ensure_ascii=False`, and `allow_nan=False`; array fields follow each table's
+column order above. Begin each table digest with domain bytes
+`apex4space.firms.logical.v1\0`, UTF-8 table name plus NUL, and row count as
+an unsigned 64-bit big-endian integer. Stream rows in primary-key order;
+before each row's JSON bytes, hash its byte length as an unsigned 64-bit
+big-endian integer. The `logical_sha256` is SHA-256 of canonical UTF-8 JSON
+(`sort_keys=True`, compact separators, `ensure_ascii=False`, `allow_nan=False`)
+with exactly `hash_version`, `schema_version`, `grid_policy_version`,
+`reduction_policy_version`, and sorted `tables` entries `{name, rows, sha256}`.
+This avoids materializing a release-sized list. Store the encoding version
+beside every digest.
+
+Accept only canonical Gregorian `YYYY-MM-DD` dates. Optional `acq_time` is
+four decimal UTC digits `0000`..`2359`; validate it but derive the date only
+from `acq_date`. Invalid required coordinates/date/time, duplicate normalized
+headers, ragged rows, or a changed/unreadable source abort the entire build.
+Never skip invalid rows. Days without rows inside the imported date range
+store count zero, `coverage_unknown`, and `no_records`; days with rows store
+`coverage_unknown` and `records_present`.
+
+Use exactly two secondary indexes: `(grid_version, cell_id, release_id, date)`
+on `hotspot_cell_day`, and `(center_longitude, center_latitude, grid_version,
+cell_id)` on `hotspot_cell` for bbox candidates. Do not store cell-ID JSON arrays or
+raw detections. Do not add default R-tree virtual tables. Every date between
+the minimum and maximum observed acquisition date has a global summary. A
+zero-count day has `input_state='no_records'` and `coverage_unknown`; zero is
+not evidence of no fire or complete observation coverage. Dates outside the
+imported range return an explicit unavailable-date error.
+
+Build in a new output directory with `database.sqlite3`, `manifest.json`, and
+`validation.json`. Use a sibling scratch SQLite database for streamed unique
+keys. Bound memory and disk with explicit resource budgets, but fail rather
+than truncate. Stream logical hashes in primary-key order. Check integrity,
+foreign keys, exact table names, row accounting, dense dates, shape references,
+and daily counts. Check source identity/hash again before publication. Fsync
+and atomically rename a completed directory on the same filesystem; refuse an
+existing output path. Remove only this invocation's scratch artifacts on
+failure. The release ID is content-based and independent of file order/name.
+
+#### Local country and continent catalog
+
+Prepare Natural Earth Admin-0 Countries 1:10m, version 5.1.1, using the
+source's de-facto country units. The source states that vector data are public
+domain and distinguishes countries from sovereign states/map units. [Natural Earth Admin-0 Countries](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/) · [Terms of Use](https://www.naturalearthdata.com/about/terms-of-use/)
+
+Keep the catalog outside the hotspot database and record its source URL,
+archive SHA-256, version, attribution, and boundary policy. This build exposes
+only the areas in scope: `country:VNM` and `continent:south-america`, made
+from its 15 saved country members. Resolve `VN`, `VNM`, `Vietnam`, `Viet Nam`,
+and `Việt Nam` to Viet Nam; resolve `South America` to the continent union.
+Normalize Unicode NFC, case-fold, trim, and collapse whitespace. Other names
+return 404; ambiguous names return 409 with candidate IDs.
+
+The catalog builder reads Natural Earth country units and source continent
+assignments, but it writes only these focused features and aliases. It
+preserves holes and islands and rejects invalid included polygons rather than
+repairing or dropping them.
+
+Write `world-areas.geojson`, `area-aliases.json`,
+`continent-membership.json`, and `world-areas-manifest.json` as UTF-8
+canonical JSON. Compute `catalog_sha256` from domain
+`apex4space.world-areas.catalog.v1\0`, the source archive SHA-256 text, and
+each generated asset's sorted filename, 8-byte length, and bytes.
+`catalog_version` is `ne-admin0-10m-5.1.1-` plus the first 16 hex digits of
+that catalog hash. This makes the version change when source or catalog
+contents change. Validate every hash, unit, alias, membership, geometry, and
+bound when loading the catalog.
+
+Named-area inclusion is `polygon.covers(cell_center)`. This reports active
+cells whose center falls in the selected polygon; the original FIRMS point
+may have been on the other side of a boundary within that cell. Return full
+cell geometry and the separate area identity. Do not clip cell geometry to
+the polygon or derive totals from displayed features.
+
+#### Schema-2 API
+
+Add versioned read-only endpoints; keep `/v1/hotspots/cells/query` and its
+schema-1 response unchanged.
+
+- `POST /v2/hotspots/query` accepts `release_id`, `area_name`, ISO `date`,
+  `page_size` (default 1,000; maximum 10,000), and optional signed cursor.
+  Resolve the name in the backend. Return `release_id`, `area_id`,
+  `area_name`, `catalog_version`, `date`, sorted `grid_versions`, full
+  `active_cell_count` before paging, `status`, `warnings`, a GeoJSON
+  `FeatureCollection`, `returned_count`, `has_more`, and `next_cursor`.
+  Each feature has stable `id`, `properties.grid_version`,
+  `properties.cell_id`, and WGS84 geometry.
+- Sort pages by `(grid_version, cell_id)`. Bind cursor to release hash,
+  resolved area/catalog version, date, page size, grid version, and last key.
+  Reject a cursor if any bound query value changes. A continent above 10,000
+  matches succeeds over multiple pages.
+- `POST /v2/hotspots/summaries/query` accepts `release_id`, `area_name`,
+  `start_date`, and exclusive `end_date`; allow at most 366 days. Return a
+  `release_id`, canonical area identity, catalog version, requested half-open
+  date range, and one `days` entry per requested date. Each entry has ISO
+  `date`, derived `active_cell_count`, `coverage_unknown`, and `input_state`.
+  Include empty/unknown days. Clients page date windows to load longer histories.
+- Select spatial candidates by indexed bounds, confirm exact point-in-polygon
+  coverage once per cell, then join the selected IDs to date memberships. Use
+  parameterized SQL and read-only connections. Stream candidates instead of
+  loading all global shapes. Count before feature paging.
+- Reject unsupported schema/grid, out-of-range dates, unknown/ambiguous
+  names, invalid page parameters, changed cursors, and database timeouts with
+  explicit errors: 404 `AREA_NOT_FOUND`, 409 `AREA_AMBIGUOUS` with candidate
+  IDs or `UNSUPPORTED_SCHEMA`, 422 `DATE_UNAVAILABLE` with imported bounds or
+  `INVALID_QUERY`, and 503 `DATABASE_UNAVAILABLE`/`QUERY_TIMEOUT`. Retain the
+  five-second request deadline and measure country and continent queries on
+  the completed database. A full database hash is checked during preparation,
+  not on every map request.
+
+GeoJSON remains longitude/latitude (EPSG:4326). The Leaflet client configures
+its map CRS separately. For an EPSG:6933 view, use compatible Leaflet,
+Proj4Leaflet, and Proj4js versions, explicit projected bounds/origin/zoom
+resolutions, and a local world vector layer in the lowest pane. Ordinary Web
+Mercator tiles do not belong in that view. Put country outlines and hotspot
+cells in higher panes. Polar features remain in the database/API, with an
+explicit EPSG:6933 display warning.
+
+#### Compatibility, configuration, and rollout
+
+Add optional `storage.global_release_path` and `storage.world_areas_path` to
+`Settings` and `config/settings.json`. The first names one immutable schema-2
+release directory containing `database.sqlite3` and its manifest; the second
+names the four local catalog assets. Keep both separate from the pilot paths
+in `config/processed-settings.json` and the legacy point database. If either
+path is absent or invalid, return `503` from v2 and preserve v1 availability.
+`scripts/check_results.py` dispatches by explicit schema version; the schema-1
+checker remains unchanged. A schema-2 API request against a schema-1 release
+returns an explicit unsupported-schema error. Build and verify before changing
+the selected global release path. Keep the pilot path as rollback. Do not
+convert either old database in place.
 
 ## 11. Phase 2 — Serve the data and connect the web app
 
 ### 11.1 Small technical design
 
 Use Python, FastAPI, its request/response models, and SQLite through Python's
-built-in `sqlite3` module. Use plain SQL in one `storage.py` module.
+built-in `sqlite3` module. Use plain SQL in `storage.py` for legacy releases
+and `processed_storage.py` for the processed-cell database.
 Use CSV or compressed CSV for small interchange files and JSON for settings
 and release records. Scientific code may use NumPy or another library only
 where it is needed. Pin dependency versions after testing.
@@ -768,6 +986,9 @@ time-series-api/
     harmonization.py
     analysis.py
     storage.py
+    processed_storage.py
+    local.py
+    exports.py
   scripts/
     fetch_data.py
     prepare_data.py
@@ -779,7 +1000,8 @@ time-series-api/
 ```
 
 Create a new module when a file has a clear second responsibility, not just
-to match a framework. Aim for code files below 500 lines and functions below
+to match a framework. The processed database and bounded export formatter
+have separate responsibilities. Aim for code files below 500 lines and functions below
 50 lines; split them when this improves understanding, not through empty
 wrapper functions. Keep secrets and large data out of git.
 
@@ -789,9 +1011,9 @@ functions. `analysis.py` calculates query results from saved typed data;
 `main.py` never starts downloads or training. README links to this canonical
 spec rather than keeping a second `development-spec.md`.
 
-See [proposed typed interfaces](time-series-api-signatures.md) for file-level
-class fields, function signatures, security rules, and the web handoff.
-Its marked clarifications are design proposals, not tested runtime behavior.
+See [typed interfaces](time-series-api-signatures.md) for file-level class
+fields, current processed-cell function signatures, security rules, and the
+web handoff. Historical legacy signatures remain design context.
 
 Freeze the source records used and selection rules with every release. Publishing
 new standard data must not change an earlier release's points, totals, or
@@ -804,8 +1026,9 @@ that saving and loading it preserves results before publication.
 TimescaleDB works with PostgreSQL and adds tools for time-based tables [R10].
 It is a future option, not an MVP dependency.
 
-Keep database calls in `storage.py`; calculations and API handlers receive
-ordinary typed data, not SQLite connections or SQL rows. Start with a few
+Keep legacy database calls in `storage.py` and processed-cell calls in
+`processed_storage.py`; calculations and API handlers receive ordinary typed
+data, not SQLite connections or SQL rows. Start with a few
 named functions for observations, daily results, and releases. Avoid a
 universal repository framework or unused adapter classes.
 
@@ -878,6 +1101,7 @@ method may be selected until its inputs and tests are checked.
 | `GET /v1/metrics` | Metric names, units, definitions, and allowed summaries. |
 | `POST /v1/analysis` | Summary, calendar, coverage, historical comparison, quality labels, and area used. |
 | `POST /v1/hotspots/query` | Pages of original observed points in GeoJSON. |
+| `POST /v1/hotspots/cells/query` | Processed cell polygons and daily count from checked summary IDs and saved shapes. |
 | `POST /v1/exports` | A bounded CSV or analysis-JSON download for the same query and release. |
 
 The POST analysis and point endpoints only read data. For the MVP, exports
@@ -972,11 +1196,19 @@ the MVP's north/south/east/west rectangle. Reject selections crossing 180° long
 world wrapping must not turn them into a different valid rectangle.
 
 Read GeoJSON with explicit `dataProjection: 'EPSG:4326'` and the actual view
-`featureProjection`. Send a request at draw completion or Apply. Cancel or
-ignore older requests, and replace the previous point layer when the query
-changes. Show whether more point pages exist; the loaded page count must not
-appear as the area's total. Visual clustering, if later needed for drawing
-speed, represents grouped map symbols, not identified fire events.
+`featureProjection`. The processed cell route accepts one date and exactly
+one prepared `area_id` or containing `bbox`; it returns one polygon per cell,
+the filtered count, status, and warnings. Draw the cell layer above the
+basemap. Keep `coverage_unknown`, `partial`, `missing`, `observed_zero`, and
+available states visible and distinct. Send a request at draw completion or
+Apply. Cancel or ignore older requests, and replace the previous layer when
+the query changes. The legacy point route remains separately paginated;
+loaded point pages must not appear as the area's total.
+
+The local pilot's visible OpenLayers placement, count, and missing/partial
+state rendering have not yet received web developer approval. Verify polygon
+placement, the count, and those status states together before calling the
+web handoff complete.
 
 Test coordinate conversion in both study areas, including negative longitude
 and latitude. Test date selection without browser-local timezone shifts,
@@ -1207,3 +1439,46 @@ The user's processed-only instruction supersedes earlier local raw retention.
 | Raw point/detail reads | Legacy releases only | narrowed scope | New processed releases return explicit unsupported errors. |
 
 No source, database, configuration, or OpenAPI migration is applied here.
+
+### All-date FIRMS database and named-area API — 2026-11-14
+
+This is the newest contract and supersedes the schema-1 pilot's two-table,
+one-grid, area allowlist, size caps, and OpenLayers handoff only for schema-2
+releases. The pilot and v1 routes remain unchanged.
+
+| Earlier object or choice | Schema-2 object or choice | Status | Owner and migration |
+| --- | --- | --- | --- |
+| `hotspot_cell` | Same table concept with row/column, projected bounds, WGS84 center, and geometry | clarified | New importer; `grid_version` changes identity, never reinterpret EPSG:8857 cells. |
+| `daily_hotspot_summary` keyed by `(release_id, area_id, date)` with JSON cell IDs | Global/day summary keyed by `(release_id, date)` plus area-derived API summary | split | Importer owns `area_id='world'`; backend computes named-area counts. |
+| Summary JSON `hotspot_cell_ids` | `hotspot_cell_day` | new | Importer writes compact membership keys with SQL foreign keys to shape/day. |
+| `pilot-10km-v1`, EPSG:8857 | Three 10 km grids in EPSG:6933/6931/6932 | new | Global importer; latitude −86°..+86° inclusive is 6933, outside bands use the matching polar grid. |
+| Exact local `source_files` allowlist, date/platform/area filters | Recursive filename-agnostic CSV discovery with all rows/dates/sensors | replaced in new path | Portable script; schema-1 preparation remains intact. |
+| Pilot rectangle `AreaRecord` | Natural Earth local country/continent polygon catalog | new | `app/areas.py`; no runtime geocoder. |
+| `/v1/hotspots/cells/query` | `/v2/hotspots/query` and `/v2/hotspots/summaries/query` | new version | v1 payload stays stable; v2 checks schema 2 and pages large results. |
+| OpenLayers view | Leaflet custom EPSG:6933 map view | changed by user | New global frontend contract only. GeoJSON remains EPSG:4326; polar bands need a separate display contract. |
+
+The standalone importer reads every valid row or fails the build. Multiple
+sensors/pass detections in one cell on one UTC day become one membership;
+distinct cells are retained. All calendar dates between observed bounds are
+stored, with `coverage_unknown` even on zero-count days. This is an active-cell
+count, not an independent fire-event count or observation-coverage estimate.
+No source row, FRP, or brightness value is stored. The new API reads only the
+checked database and local polygon catalog. The user's request to execute
+`plan-firms-all-dates.md` authorizes the phase order and the supplemental polar
+grids needed to preserve all valid rows; it does not authorize visual approval
+or external developer contact.
+
+### Local OpenLayers web MVP — 2026-11-14
+
+The user's latest request selects OpenLayers for the schema-2 MVP, replacing
+Leaflet. `web-app/` is a static page served by `app.web.create_web_app` beside
+the existing v2 API. It uses the same release, dates, exact center rule, full
+counts, and signed paging. The whole interface fits the window. Map notes
+open in a dialog. Daily bars show the selected month and select its date.
+The plain Natural Earth world background and simplified area outlines are
+for display; the backend still filters with the exact catalog geometry.
+The map is EPSG:6933 and GeoJSON remains EPSG:4326. Run instructions are in
+`web-app/README.md`.
+
+Terminology: `OpenLayers map` replaces `Leaflet map` in the current frontend
+contract. Database tables and API object names are unchanged.

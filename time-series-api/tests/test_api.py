@@ -87,8 +87,15 @@ def test_selection_geometry_keeps_input_and_closes_ring():
         selection={"type": "Polygon", "coordinates": (((0.5, 0.5), (1.5, 0.5),
             (1.5, 1.5), (0.5, 1.5), (0.5, 0.5)),)})
     assert clipped.active_cell_count == 1
+    assert clipped.requested_selector == {"bbox": map_query.bbox}
+    assert clipped.warnings == ()
     assert clipped.features[0].id == "0:0"
     assert clipped.features[0].geometry["type"] == "Polygon"
+    unknown_coverage = cells.make_cell_map(map_query,
+        summary.model_copy(update={"status": "coverage_unknown"}), (cell,),
+        grid_version="grid-v1", selection={"type": "Polygon", "coordinates": (
+            ((0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5), (0.5, 0.5)),)})
+    assert unknown_coverage.warnings == ("Observation coverage is unknown for this date.",)
     excluded = cells.make_cell_map(map_query, summary, (cell,), grid_version="grid-v1",
         selection={"type": "Polygon", "coordinates": (((0.5, 0.5), (1.5, 0.5),
             (1.5, 1.5), (0.5, 1.5), (0.5, 0.5)),
@@ -217,7 +224,7 @@ def test_request_rejects_empty_platform_and_coerced_baseline():
         models.AnalysisRequest.model_validate(query)
 
 
-def test_route_contracts(api_client, monkeypatch, tmp_path):
+def test_route_contracts(api_client, monkeypatch, tmp_path, processed_cell_contracts):
     assert api_client.get("/health/live").json() == {"status": "ok"}
     assert api_client.get("/health/ready").json() == {"status": "ok"}
     releases = api_client.get("/v1/releases").json()
@@ -227,35 +234,8 @@ def test_route_contracts(api_client, monkeypatch, tmp_path):
     assert "database_path" not in detail and "FIRMS_MAP_KEY" not in str(detail)
     assert api_client.get("/v1/metrics").status_code == 200
     _assert_openapi(api_client)
-    from app import storage
+    processed_cell_contracts(api_client, monkeypatch)
 
-    with monkeypatch.context() as patch:
-        def forbidden(*args, **kwargs):
-            raise AssertionError("map request tried to read source data")
-        patch.setattr(storage, "read_observations", forbidden)
-        patch.setattr("app.drive.list_drive_csvs", forbidden)
-        cell_map = api_client.post("/v1/hotspots/cells/query", json={
-            "release_id": "cell-fixture-v1", "date": "2024-03-01",
-            "area_id": "test-area",
-        })
-        assert cell_map.status_code == 200
-        assert cell_map.json()["active_cell_count"] == 1
-        assert cell_map.json()["features"][0]["id"] == "0:0"
-        bbox_map = api_client.post("/v1/hotspots/cells/query", json={
-            "release_id": "cell-fixture-v1", "date": "2024-03-01",
-            "bbox": [106, 10, 107, 11],
-        })
-        assert bbox_map.status_code == 200 and bbox_map.json()["active_cell_count"] == 1
-        outside = api_client.post("/v1/hotspots/cells/query", json={
-            "release_id": "cell-fixture-v1", "date": "2024-03-01",
-            "bbox": [0, 0, 1, 1],
-        })
-        assert outside.status_code == 422 and outside.json()["code"] == "AREA_NOT_PREPARED"
-        raw = api_client.post("/v1/hotspots/query", json={
-            "release_id": "cell-fixture-v1", "bbox": [106, 10, 107, 11],
-            "start_date": "2024-03-01", "end_date": "2024-03-02", "platforms": ["Aqua"],
-        })
-        assert raw.status_code == 409 and raw.json()["code"] == "UNSUPPORTED_DATASET"
     request = _api_request()
     analysis = api_client.post("/v1/analysis", json=request)
     assert analysis.status_code == 200 and analysis.json()["summary"]["value"] == 2
@@ -289,7 +269,7 @@ def _assert_openapi(client):
     saved_schema = json.loads((Path(__file__).parents[1] / "openapi.json").read_text())
     assert schema == saved_schema
     operations = {operation["operationId"] for path in schema["paths"].values() for operation in path.values()}
-    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "query_hotspot_cells", "export_results"}
+    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "query_hotspot_cells", "export_results", "query_area_hotspots", "query_area_summaries"}
     point = schema["components"]["schemas"]["PointGeometry"]
     assert point["properties"]["type"].get("const") == "Point"
     assert point["properties"]["coordinates"]["type"] == "array"

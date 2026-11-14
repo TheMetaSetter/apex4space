@@ -1,12 +1,10 @@
 """HTTP app for fixed time-series releases."""
 
 import base64
-import csv
 from collections import deque
 from datetime import datetime
 import hashlib
 import hmac
-import io
 import json
 import os
 import secrets
@@ -22,7 +20,11 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import analysis, storage
+from app.areas import load_world_areas
+from app.area_queries import (HotspotResponse, SummaryResponse,
+    query_hotspots as query_area_hotspots, query_summaries)
 from app.cells import CellMapQuery, CellMapResponse, make_cell_map
+from app.exports import build_export
 from app.models import (
     AnalysisRequest, AnalysisResponse, ApiError, ApiSettings, ExportRequest,
     CursorPosition, ErrorResponse, HealthResponse,
@@ -31,7 +33,7 @@ from app.models import (
     ReleaseSummary, Settings, load_settings, selection_geometry,
 )
 
-_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/hotspots/cells/query", "/v1/exports"}
+_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/hotspots/cells/query", "/v1/exports", "/v2/hotspots/query", "/v2/hotspots/summaries/query"}
 _METRICS = (
     MetricDefinition(name="observed_hotspot_count", unit="detections",
         definition="Count selected source detections.", allowed_aggregations=("day", "month")),
@@ -58,6 +60,10 @@ def create_app(settings_path: Path | None = None) -> FastAPI:
     app = FastAPI(title="Time-series API", version="1.0.0")
     app.state.settings = settings
     app.state.cursor_secret = secret
+    try:
+        app.state.world_areas = load_world_areas(settings.storage.world_areas_path) if settings.storage.world_areas_path else None
+    except Exception:
+        app.state.world_areas = None
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(Exception, handle_server_error)
@@ -70,6 +76,10 @@ def create_app(settings_path: Path | None = None) -> FastAPI:
     app.add_api_route("/v1/hotspots/query", query_hotspots, methods=["POST"], response_model=HotspotPage, operation_id="query_hotspots")
     app.add_api_route("/v1/hotspots/cells/query", query_hotspot_cells, methods=["POST"],
                       response_model=CellMapResponse, operation_id="query_hotspot_cells")
+    app.add_api_route("/v2/hotspots/query", query_area_hotspots, methods=["POST"], response_model=HotspotResponse,
+                      operation_id="query_area_hotspots")
+    app.add_api_route("/v2/hotspots/summaries/query", query_summaries, methods=["POST"], response_model=SummaryResponse,
+                      operation_id="query_area_summaries")
     app.add_api_route(
         "/v1/exports", export_results, methods=["POST"], response_class=Response,
         response_model=None, operation_id="export_results",
@@ -233,9 +243,17 @@ def query_hotspot_cells(query: CellMapQuery, request: Request) -> CellMapRespons
         raise ApiError(422, "AREA_NOT_PREPARED", "The area is not in this release.")
     area_geometry = manifest.areas[area_id]["geometry"]
     summary = storage.read_hotspot_summary(database, query.release_id, area_id, query.date)
-    cells = storage.read_hotspot_cells(database, manifest.grid_version,
-        summary.hotspot_cell_ids) if summary.hotspot_cell_ids else ()
     try:
+        if summary.hotspot_cell_ids is not None and len(summary.hotspot_cell_ids) > 10000:
+            if query.bbox is None:
+                raise ValueError("map contains more than 10,000 matching cells")
+            selected_ids = storage.read_hotspot_cell_ids_in_bbox(
+                database, manifest.grid_version, summary.hotspot_cell_ids, query.bbox)
+            summary = summary.model_copy(update={
+                "active_cell_count": len(selected_ids), "hotspot_cell_ids": selected_ids,
+            })
+        cells = storage.read_hotspot_cells(database, manifest.grid_version,
+            summary.hotspot_cell_ids) if summary.hotspot_cell_ids else ()
         return make_cell_map(query, summary, cells, grid_version=manifest.grid_version,
                              selection=area_geometry)
     except ValueError as error:
@@ -250,98 +268,6 @@ def export_results(query: ExportRequest, request: Request) -> Response:
     return Response(body, media_type=media_type, headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
     })
-
-
-def build_export(query: ExportRequest, *, settings: Settings) -> tuple[bytes, str, str]:
-    release = storage.load_release(settings.storage.database_path, query.release_id)
-    api_settings = settings.api
-    limits = api_settings.export_limits
-    started = time.perf_counter()
-    maximum_seconds = limits["maximum_execution_seconds"]
-    maximum_bytes = limits["maximum_bytes"]
-    body = bytearray()
-
-    def check_time() -> None:
-        if time.perf_counter() - started > maximum_seconds:
-            raise ApiError(413, "EXPORT_TIME_LIMIT", "The export exceeds the time limit.")
-
-    def add_row(writer_values) -> None:
-        check_time()
-        buffer = io.StringIO(newline="")
-        csv.writer(buffer, lineterminator="\r\n").writerow(writer_values)
-        encoded = buffer.getvalue().encode("utf-8")
-        if len(body) + len(encoded) > maximum_bytes:
-            raise ApiError(413, "EXPORT_BYTE_LIMIT", "The export exceeds the byte limit.")
-        body.extend(encoded)
-
-    if query.kind == "analysis":
-        analysis_query = AnalysisRequest.model_validate({
-            key: value for key, value in query.model_dump(mode="json").items()
-            if key not in {"kind", "format"}
-        })
-        analysis.validate_query_domain(analysis_query, release, settings=api_settings)
-        inputs = storage.read_daily(settings.storage.database_path, analysis_query, settings=api_settings)
-        result = analysis.build_analysis(analysis_query, inputs, release)
-        result = result.model_copy(update={
-            "response_time_ms": round((time.perf_counter() - started) * 1000, 3),
-        })
-        for chunk in json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).iterencode(
-            result.model_dump(mode="json")
-        ):
-            check_time()
-            encoded = chunk.encode("utf-8")
-            if len(body) + len(encoded) > maximum_bytes:
-                raise ApiError(413, "EXPORT_BYTE_LIMIT", "The export exceeds the byte limit.")
-            body.extend(encoded)
-        return bytes(body), "application/json", "time-series-analysis.json"
-
-    analysis.validate_query_domain(query, release, settings=api_settings)
-    page_size = min(api_settings.default_page_size, api_settings.maximum_page_size)
-    point_query = HotspotQuery(
-        release_id=query.release_id, bbox=query.bbox, start_date=query.start_date,
-        end_date=query.end_date, platforms=query.platforms, page_size=page_size,
-    )
-    headers = (
-        "observation_id", "observed_at", "longitude", "latitude", "platform",
-        "instrument", "source_file_id", "source_row_id", "pass_id", "frp_mw",
-        "confidence", "hotspot_type", "quality", "bands", "original_fields",
-    )
-    add_row(headers)
-    row_count = 0
-    position = None
-    while True:
-        check_time()
-        page = storage.read_observations(settings.storage.database_path, point_query, position)
-        bands: dict[str, list[dict]] = {}
-        for band in page.bands:
-            bands.setdefault(band.observation_id, []).append({
-                "band_name": band.band_name, "value": band.value,
-                "unit": band.unit, "flags": band.flags,
-            })
-        for row in page.observations:
-            row_count += 1
-            if row_count > limits["maximum_rows"]:
-                raise ApiError(413, "EXPORT_ROW_LIMIT", "The export exceeds the row limit.")
-            values = (
-                row.observation_id, row.observed_at.isoformat(), row.longitude, row.latitude,
-                row.platform, row.instrument, row.source_file_id, row.source_row_id,
-                row.pass_id, row.frp_mw, row.confidence, row.hotspot_type,
-                json.dumps(row.quality, separators=(",", ":")),
-                json.dumps(bands.get(row.observation_id, []), sort_keys=True, separators=(",", ":")),
-                json.dumps(row.original_fields, sort_keys=True, separators=(",", ":")),
-            )
-            add_row(_safe_csv_cell(value) for value in values)
-        if page.next_position is None:
-            break
-        position = page.next_position
-    check_time()
-    return bytes(body), "text/csv; charset=utf-8", "time-series-observations.csv"
-
-
-def _safe_csv_cell(value):
-    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
-        return "'" + value
-    return value
 
 
 def handle_api_error(request: Request, error: ApiError) -> JSONResponse:

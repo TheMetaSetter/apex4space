@@ -169,6 +169,16 @@ def test_tiny_selection_has_no_spatial_support():
         seam_shape = shape(seam_cell.geometry)
         assert seam_shape.is_valid
         assert -180 <= seam_shape.bounds[0] <= seam_shape.bounds[2] <= 180
+    from shapely.geometry import Point, Polygon, mapping
+    hole_cell = cells.assign_cell(0, 0, grid)
+    center_x, center_y = hole_cell.center_longitude, hole_cell.center_latitude
+    hole = Polygon(((-1, -1), (1, -1), (1, 1), (-1, 1), (-1, -1)),
+        (((center_x - 0.01, center_y - 0.01), (center_x + 0.01, center_y - 0.01),
+          (center_x + 0.01, center_y + 0.01), (center_x - 0.01, center_y + 0.01),
+          (center_x - 0.01, center_y - 0.01)),))
+    hole_area = cells.AreaRecord(area_id="hole-test", name="Hole test", version="1",
+                                 geometry=mapping(hole))
+    assert hole.is_valid and not shape(hole_area.geometry).covers(Point(center_x, center_y))
     analysis = import_module("app.analysis")
     query = AnalysisRequest(release_id="fixture", bbox=(106, 10, 106.1, 10.1),
         start_date=date(2024, 3, 1), end_date=date(2024, 3, 2),

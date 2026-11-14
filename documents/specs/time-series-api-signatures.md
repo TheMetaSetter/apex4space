@@ -1,15 +1,390 @@
-# time-series-api: proposed interfaces
+# time-series-api: implemented and historical interfaces
 
-Responder MVP update (2026-11-14): the new file-level tree and proposed
-signatures are in `documents/logs/2026-11-14/detail/detail-responder-hotspot-mvp.md`.
-Existing interfaces below remain the compatibility baseline; the new plan
-does not claim those interfaces have already migrated.
+_Implementation status: 14 November 2026 · local processed-cell pilot_
 
-Status: design only. No application code or security test has run.
-Based on [spec v0.4](time-series-api-devspec.md) and the
-[directory tree](../logs/2026-11-13/structure/time-series-api-directory-tree.md).
-Keep the six modules and three scripts. This document fills in their types
-and calls; it does not choose the still-untested scientific method.
+The processed responder path is implemented and exercised by the local pilot.
+The current signatures below are authoritative for that path. The older
+design-only interface notes remain below as historical context for legacy
+point and science behavior; they are not specifications for the new processed
+database.
+
+The pilot produced a separate SQLite database with exactly two user tables.
+It used the explicit local file allowlist in
+[`config/processed-settings.json`](../../time-series-api/config/processed-settings.json)
+and did not call the Google Drive API or FIRMS network. The validated
+release report is
+[`responder-hotspot-pilot-report.md`](../logs/2026-11-14/detail/responder-hotspot-pilot-report.md).
+
+## Current processed-cell signatures — schema 1 pilot
+
+### Transient local CSV processing
+
+```python
+# app/local.py
+def discover_local_csvs(
+    root: Path, source_files: Mapping[str, str]
+) -> tuple[tuple[Path, str], ...]: ...
+
+def scan_local_csv(
+    path: Path, *, root: Path, source_id: str, grid: GridSettings,
+    area: AreaRecord, start_date: date, end_date: date,
+    platforms: tuple[str, ...], maximum_memberships: int,
+) -> LocalScanResult: ...
+
+def write_processed_checkpoint(
+    staging_path: Path, release_id: str, result: LocalScanResult,
+    selection_sha256: str,
+) -> tuple[Path, str]: ...
+```
+
+`discover_local_csvs` resolves only configured relative paths. `scan_local_csv`
+streams and hashes a source, then returns only daily cell-ID sets, active
+shapes, source version labels, and aggregate counts. It does not create stored
+observation objects. Checkpoints contain only compact processed cell sets and
+provenance; successful-run checkpoints are deleted after release validation.
+
+### Grid and daily summary contracts
+
+```python
+# app/cells.py
+def load_cell_settings(path: Path) -> CellPreparationSettings: ...
+def load_area_catalog(path: Path) -> tuple[AreaRecord, ...]: ...
+def assign_cell(longitude: float, latitude: float, grid: GridSettings) -> CellRecord: ...
+def cell_from_id(cell_id: str, grid: GridSettings) -> CellRecord: ...
+def summarize_hotspots(
+    day_cells: Mapping[date, frozenset[str]], *, release_id: str,
+    area_id: str, start_date: date, end_date: date,
+    day_states: Mapping[date, str],
+) -> tuple[DailyHotspotSummary, ...]: ...
+def make_cell_map(
+    query: CellMapQuery, summary: DailyHotspotSummary,
+    cells: Sequence[CellRecord], *, grid_version: str,
+    selection: AreaGeometry,
+) -> CellMapResponse: ...
+```
+
+`CellMapQuery` requires one UTC date and exactly one of `area_id` or `bbox`.
+`CellMapResponse` is a GeoJSON `FeatureCollection`; each feature is a clipped
+cell polygon with a stable `cell_id`. The response also returns the selector,
+count, status, and warnings. `coverage_unknown`, `partial`, and `missing` are
+not collapsed into zero.
+
+### Two-table storage and preparation
+
+```python
+# app/processed_storage.py
+def initialize_cell_database(path: Path) -> None: ...
+def publish_cell_release(
+    path: Path, cells: Iterator[CellRecord],
+    summaries: Iterator[DailyHotspotSummary],
+    manifest: CellReleaseManifest, storage: StorageSettings,
+) -> None: ...
+def read_cell_manifest(releases_path: Path, release_id: str) -> CellReleaseManifest: ...
+def read_hotspot_summary(
+    path: Path, release_id: str, area_id: str, day: date,
+) -> DailyHotspotSummary: ...
+def read_hotspot_cells(
+    path: Path, grid_version: str, cell_ids: Sequence[str],
+) -> tuple[CellRecord, ...]: ...
+def read_hotspot_cell_ids_in_bbox(
+    path: Path, grid_version: str, cell_ids: Sequence[str], bbox,
+    *, maximum_cells: int = 10000,
+) -> tuple[str, ...]: ...
+
+# scripts/prepare_data.py
+def prepare_cell_release(
+    settings: CellPreparationSettings, release_id: str, *,
+    input_csv: Path | None = None, input_source: str | None = None,
+    input_dir: Path | None = None, drive_folder_id: str | None = None,
+    start_date: date | None = None, end_date: date | None = None,
+    area_id: str | None = None, platforms: tuple[str, ...] | None = None,
+) -> None: ...
+
+# scripts/check_results.py
+def check_processed_release(
+    settings: CellPreparationSettings, release_id: str,
+) -> dict[str, object]: ...
+```
+
+The database tables are `hotspot_cell` keyed by `(grid_version, cell_id)` and
+`daily_hotspot_summary` keyed by `(release_id, area_id, date)`. The summary
+stores a nullable count, nullable sorted unique ID list, and explicit status.
+Cell references are checked through the release grid version; they are not a
+SQL foreign key. Release manifests and validation hashes remain compact JSON
+files outside the database.
+
+### Read-only map API
+
+```python
+# app/main.py
+def query_hotspot_cells(
+    query: CellMapQuery, request: Request,
+) -> CellMapResponse: ...
+```
+
+Route: `POST /v1/hotspots/cells/query`. It reads checked release metadata,
+the daily summary, and the referenced shapes. It does not read source CSVs,
+Drive, or FIRMS. Large area requests fail before headers; bbox requests filter
+cell centers before loading shapes and return the filtered count.
+
+Use GeoJSON as EPSG:4326 input in OpenLayers and transform it to the map view
+projection. Draw the cell polygon layer above the basemap. Point, analysis,
+and export routes remain for legacy releases; processed releases return an
+explicit unsupported-dataset error for those paths.
+
+Bounded legacy exports are implemented in `app/exports.py`; their formatting
+and query limits remain separate from the processed-cell storage path.
+
+## Authorized all-date contracts — schema 2 target
+
+These are the execution contracts for the new global FIRMS release. They are
+not yet implemented. The schema-1 signatures above remain unchanged and
+continue to describe the EPSG:8857 pilot.
+
+### Standalone importer
+
+```python
+# scripts/preprocess_firms.py; no imports from app/
+def discover_inputs(inputs: Sequence[Path]) -> tuple[InputIdentity, ...]: ...
+def read_rows(path: Path, *, expected_sha256: str) -> Iterator[FirmsRow]: ...
+def assign_grid_cell(longitude: float, latitude: float) -> GridAssignment: ...
+def make_cell_geometry(assignment: GridAssignment) -> GridCell: ...
+def build_database(
+    inputs: Sequence[InputIdentity], output_dir: Path, *,
+    memory_budget_mib: int = 256, max_work_bytes: int | None = None,
+    max_output_bytes: int | None = None,
+) -> BuildReport: ...
+def main(argv: Sequence[str] | None = None) -> int: ...
+
+# scripts/check_results.py; schema-version dispatch preserves v1
+def check_global_release(release_dir: Path) -> dict[str, object]: ...
+```
+
+`--input` is repeatable and accepts a CSV file or recursively searched
+directory. `--output-dir` must name a new directory. No input filename
+convention, date/platform/area filter, network request, or API key is part of
+this importer. `FirmsRow` contains only validated date, coordinates, optional
+compact labels, and input record identity needed for diagnostics; no raw row
+is persisted. `assign_grid_cell` returns a small `GridAssignment`, not a
+polygon for every source row. The finalizer calls `make_cell_geometry` once
+per unique active cell. `GridCell` has stable `column:row` ID, integer indices,
+projected bounds, WGS84 center, and GeoJSON geometry.
+
+```python
+@dataclass(frozen=True, kw_only=True)
+class InputIdentity:
+    path: Path
+    size_bytes: int
+    device: int
+    inode: int
+    modified_ns: int
+    sha256: str
+
+@dataclass(frozen=True, kw_only=True)
+class FirmsRow:
+    record_number: int
+    date: date
+    longitude: float
+    latitude: float
+    acq_time_utc: str | None
+    satellite_label: str | None
+    instrument_label: str | None
+    version_label: str | None
+
+@dataclass(frozen=True, kw_only=True)
+class GridAssignment:
+    grid_version: str
+    cell_id: str
+    column_index: int
+    row_index: int
+
+@dataclass(frozen=True, kw_only=True)
+class GridCell:
+    grid_version: str
+    cell_id: str
+    column_index: int
+    row_index: int
+    min_x_m: float
+    min_y_m: float
+    max_x_m: float
+    max_y_m: float
+    center_longitude: float
+    center_latitude: float
+    geometry: AreaGeometry
+
+@dataclass(frozen=True, kw_only=True)
+class BuildReport:
+    release_id: str
+    input_file_count: int
+    input_bytes: int
+    rows_read: int
+    rows_assigned: int
+    duplicate_memberships: int
+    cell_count: int
+    membership_count: int
+    summary_day_count: int
+    start_date: date
+    end_date_inclusive: date
+    grid_counts: Mapping[str, int]
+    logical_sha256: str
+```
+
+Grid versions are `firms-ease-global-10km-v2` (EPSG:6933, −86°..+86°),
+`firms-ease-north-10km-v2` (EPSG:6931, above +86°), and
+`firms-ease-south-10km-v2` (EPSG:6932, below −86°). Boundaries belong to
+EPSG:6933. Every valid row is assigned; malformed rows fail publication.
+The database holds exactly `hotspot_cell`, `hotspot_cell_day`, and
+`daily_hotspot_summary`, with SQL foreign keys from memberships to cells and
+global day summaries. Daily summaries span every date between observed bounds
+and report `coverage_unknown`.
+
+### Offline named-area catalog
+
+```python
+# app/areas.py
+def load_world_areas(
+    geometry_path: Path, aliases_path: Path, membership_path: Path,
+    manifest_path: Path,
+) -> WorldAreaCatalog: ...
+def resolve_area_name(name: str, catalog: WorldAreaCatalog) -> ResolvedArea: ...
+def candidate_cell_ids(
+    database_path: Path, grid_versions: Sequence[str], area: ResolvedArea,
+) -> Iterator[tuple[str, str]]: ...
+```
+
+The catalog uses Natural Earth Admin-0 Countries 1:10m version 5.1.1, local
+WGS84 geometry, stable `country:<ADM0_A3>` IDs, explicit continent member IDs,
+and normalized aliases. This build exposes only Viet Nam and South America.
+Runtime does not geocode or fetch boundaries. Area membership uses exact
+polygon coverage of saved cell centers.
+
+`WorldAreaCatalog` has `catalog_version`, `source_sha256`, `areas`,
+`alias_to_area_ids`, and `continent_members`; mappings are immutable after
+load. `ResolvedArea` has `area_id`, `display_name`, `geometry`, and
+`catalog_version`. The active IDs are `country:VNM` and
+`continent:south-america`; the latter stores its 15 member country IDs.
+Aliases include `VN`, `VNM`, `Vietnam`, `Viet Nam`, `Việt Nam`, and
+`South America`.
+
+### Version-2 requests and responses
+
+```python
+# app/area_queries.py; registered in app/main.py:create_app
+class HotspotAreaQuery(BaseModel):
+    release_id: str
+    area_name: str
+    date: date
+    page_size: int = 1000
+    cursor: str | None = None
+
+class AreaSummaryQuery(BaseModel):
+    release_id: str
+    area_name: str
+    start_date: date
+    end_date: date  # exclusive; range <= 366 days
+
+class AreaHotspotProperties(TypedDict):
+    grid_version: str
+    cell_id: str
+
+class AreaHotspotFeature(TypedDict):
+    type: Literal["Feature"]
+    id: str
+    properties: AreaHotspotProperties
+    geometry: AreaGeometry
+
+class AreaFeatureCollection(TypedDict):
+    type: Literal["FeatureCollection"]
+    features: tuple[AreaHotspotFeature, ...]
+
+@dataclass(frozen=True, kw_only=True)
+class HotspotAreaPage:
+    release_id: str
+    area_id: str
+    area_name: str
+    catalog_version: str
+    date: date
+    grid_versions: tuple[str, ...]
+    active_cell_count: int
+    status: str
+    warnings: tuple[str, ...]
+    feature_collection: AreaFeatureCollection
+    returned_count: int
+    has_more: bool
+    next_cursor: str | None
+
+@dataclass(frozen=True, kw_only=True)
+class AreaDailySummary:
+    date: date
+    active_cell_count: int
+    status: str
+    input_state: str
+
+@dataclass(frozen=True, kw_only=True)
+class AreaSummaryResponse:
+    release_id: str
+    area_id: str
+    area_name: str
+    catalog_version: str
+    start_date: date
+    end_date: date  # exclusive
+    days: tuple[AreaDailySummary, ...]
+    warnings: tuple[str, ...]
+
+def query_area_hotspots(
+    query: HotspotAreaQuery, *, database_path: Path,
+    catalog: WorldAreaCatalog, cursor_secret: bytes,
+) -> HotspotAreaPage: ...
+def query_area_summaries(
+    query: AreaSummaryQuery, *, database_path: Path,
+    catalog: WorldAreaCatalog,
+) -> AreaSummaryResponse: ...
+```
+
+Routes are `POST /v2/hotspots/query` and
+`POST /v2/hotspots/summaries/query`. Cell pages return standard WGS84 GeoJSON,
+full match count before pagination, `returned_count`, `has_more`, a signed
+cursor, canonical area/catalog identity, grid versions, and coverage warnings.
+Summary responses derive area/day counts from selected cell IDs and indexed
+memberships. Unknown areas return 404; ambiguous aliases return 409 with
+candidates; dates outside the imported range, invalid pages, unsupported
+schemas, changed cursors, or timeout return explicit errors. Schema-1 v1
+routes and payloads remain stable.
+
+Extend `StorageSettings` with optional `global_release_path: Path | None` and
+`world_areas_path: Path | None`. The first names one immutable release
+directory containing `database.sqlite3`, `manifest.json`, and
+`validation.json`; the second names `world-areas.geojson`,
+`area-aliases.json`, `continent-membership.json`, and
+`world-areas-manifest.json`. Convert both to resolved paths in
+`load_settings`. The schema-2 route validates the request release ID against
+the configured directory's manifest. If either path or the catalog is
+invalid, return 503 for v2 and keep v1 available. The existing
+`CURSOR_SECRET` must contain at least 32 bytes. Cursor tokens are canonical
+JSON signed with HMAC-SHA-256 and unpadded base64url encoded; they bind
+`v=2`, release ID/logical hash, canonical area/catalog version, date, page
+size, and last `(grid_version, cell_id)`.
+
+Validate release IDs as 64 lowercase hex characters, area names as 1–200
+characters, dates as exact ISO calendar dates, page sizes as strict integers
+1–10,000, and cursors as at most 2,048 characters. Summary windows use
+`start_date < end_date`, exclusive end, and at most 366 days; the complete
+range must be within the imported date bounds. Map response `status` is
+`coverage_unknown`; `warnings` says coverage is unknown and, when polar grid
+features appear, notes they are outside the EPSG:6933 map area. Return each
+feature's grid and cell IDs.
+
+`WorldAreaCatalog`, `ResolvedArea`, `InputIdentity`, `FirmsRow`, `GridCell`,
+`BuildReport`, `HotspotAreaPage`, `AreaDailySummary`, and
+`AreaSummaryResponse` are proposed immutable records/models owned by the named
+files. Their concrete fields are frozen in the implementation plan and the
+§10.7 development spec.
+
+## Historical design notes
+
+The sections below describe prior general API and science proposals. Consult
+the live code and the processed-cell signatures above for the implemented
+pilot behavior.
 
 ## 1. Design steps and choice
 
@@ -672,3 +1047,12 @@ Do not call the system secure or scientifically checked from this document.
 
 Check the installed versions before implementation; these signatures are a
 proposal, not a promise that every current library default matches the design.
+
+### Local OpenLayers shell — 2026-11-14
+
+`app.web.create_web_app()` returns the existing FastAPI app with static files
+at `/` and a local `GET /app/config` route (excluded from public OpenAPI).
+The latter returns `release_id`, `start_date`, `end_date`, and `boundaries`
+(display-only GeoJSON). `web-app/serve.py` starts it on 127.0.0.1:8000.
+The frontend calls the existing v2 route payloads unchanged. OpenLayers
+replaces Leaflet by user request; no database or API object names change.

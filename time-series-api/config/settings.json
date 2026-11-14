@@ -5,6 +5,8 @@
     "releases_path": "data/releases",
     "cell_database_path": "data/processed.sqlite3",
     "cell_releases_path": "data/processed-releases",
+    "global_release_path": "data/global-releases/firms-v2",
+    "world_areas_path": "config",
     "saved_bytes_limit": 524288000,
     "temporary_bytes_limit": 2147483648
   },

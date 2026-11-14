@@ -12,3 +12,6 @@ where `<end users>` are:
 3. land managers.
 
 # project directory tree
+
+Local map MVP: see [web-app/README.md](web-app/README.md). Run
+`.venv/bin/python web-app/serve.py` and open http://127.0.0.1:8000.

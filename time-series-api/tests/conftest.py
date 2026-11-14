@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import csv
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -100,3 +101,161 @@ def api_client(tmp_path, monkeypatch):
 
     with TestClient(create_app(settings_path)) as client:
         yield client
+
+
+def _forbid_source_reader(*args, **kwargs):
+    raise AssertionError("map request tried to read source data")
+
+
+def _assert_cell_map_selectors(client, storage, patch, cells):
+    read_cells = storage.read_hotspot_cells
+    area_map = client.post("/v1/hotspots/cells/query", json={
+        "release_id": "cell-fixture-v1", "date": "2024-03-01", "area_id": "test-area",
+    })
+    assert area_map.status_code == 200 and area_map.json()["active_cell_count"] == 1
+    assert area_map.json()["features"][0]["id"] == "0:0"
+    bbox_map = client.post("/v1/hotspots/cells/query", json={
+        "release_id": "cell-fixture-v1", "date": "2024-03-01", "bbox": [106, 10, 107, 11],
+    })
+    assert bbox_map.status_code == 200 and bbox_map.json()["active_cell_count"] == 1
+    oversized_ids = tuple(sorted(("0:0", *(f"{i:05d}:0" for i in range(10000)))))
+    oversized = cells.DailyHotspotSummary(release_id="cell-fixture-v1", area_id="test-area",
+        date=date(2024, 3, 1), active_cell_count=10001,
+        hotspot_cell_ids=oversized_ids, status="available")
+    patch.setattr(storage, "read_hotspot_summary", lambda *args, **kwargs: oversized)
+    too_many = client.post("/v1/hotspots/cells/query", json={
+        "release_id": "cell-fixture-v1", "date": "2024-03-01", "area_id": "test-area",
+    })
+    assert too_many.status_code == 413 and too_many.json()["code"] == "CELL_LIMIT"
+    patch.setattr(storage, "read_hotspot_cell_ids_in_bbox", lambda *args, **kwargs: ("0:0",))
+    patch.setattr(storage, "read_hotspot_cells", read_cells)
+    selected = client.post("/v1/hotspots/cells/query", json={
+        "release_id": "cell-fixture-v1", "date": "2024-03-01", "bbox": [106, 10, 107, 11],
+    })
+    assert selected.status_code == 200 and selected.json()["active_cell_count"] == 1
+    assert selected.json()["features"][0]["id"] == "0:0"
+    outside = client.post("/v1/hotspots/cells/query", json={
+        "release_id": "cell-fixture-v1", "date": "2024-03-01", "bbox": [0, 0, 1, 1],
+    })
+    assert outside.status_code == 422 and outside.json()["code"] == "AREA_NOT_PREPARED"
+
+
+def _assert_processed_paths_reject_raw_reads(client):
+    request = {"release_id": "cell-fixture-v1", "bbox": [106, 10, 107, 11],
+        "start_date": "2024-03-01", "end_date": "2024-03-02",
+        "metric": "observed_hotspot_count", "aggregation": "day", "platforms": ["Aqua"]}
+    for path, body in (
+        ("/v1/hotspots/query", {key: request[key] for key in (
+            "release_id", "bbox", "start_date", "end_date", "platforms")} ),
+        ("/v1/analysis", request),
+        ("/v1/exports", {**request, "kind": "analysis", "format": "json"}),
+        ("/v1/exports", {"release_id": "cell-fixture-v1", "bbox": [106, 10, 107, 11],
+            "start_date": "2024-03-01", "end_date": "2024-03-02",
+            "kind": "observations", "format": "csv", "platforms": ["Aqua"]}),
+    ):
+        response = client.post(path, json=body)
+        assert response.status_code == 409
+        assert response.json()["code"] == "UNSUPPORTED_DATASET"
+
+
+def _assert_processed_cell_routes(client, monkeypatch):
+    from app import storage
+    from app import cells
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "read_observations", _forbid_source_reader)
+        patch.setattr("app.drive.list_drive_csvs", _forbid_source_reader)
+        patch.setattr("app.drive.scan_drive_csv", _forbid_source_reader)
+        _assert_cell_map_selectors(client, storage, patch, cells)
+        _assert_processed_paths_reject_raw_reads(client)
+
+
+@pytest.fixture
+def processed_cell_contracts():
+    return _assert_processed_cell_routes
+
+
+def _write_local_source(tmp_path):
+    root = tmp_path / "local-csv-tree"
+    folder = root / "MODIS"
+    folder.mkdir(parents=True)
+    path = folder / "MODIS_Terra_Aqua_near_real_time_2026.csv"
+    columns = ("latitude", "longitude", "brightness", "scan", "track", "acq_date",
+               "acq_time", "satellite", "instrument", "confidence", "version",
+               "bright_t31", "frp", "daynight")
+    rows = [("1200", "6.1NRT"), ("1201", "6.1URT")]
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writeheader()
+        for clock, version in rows:
+            writer.writerow({"latitude": "-14.5", "longitude": "-59.5", "brightness": "300",
+                "scan": "1", "track": "1", "acq_date": "2026-01-01", "acq_time": clock,
+                "satellite": "A", "instrument": "MODIS", "confidence": "fire\nwatch",
+                "version": version, "bright_t31": "290", "frp": "1", "daynight": "D"})
+    (root / "Readme.txt").write_text("ignored")
+    (root / "ignored.zip").write_bytes(b"not opened")
+    (folder / "MODIS_Terra_Aqua_archive_2000-2026.csv").write_bytes(b"not opened")
+    return root, path, columns
+
+
+def _scan_local_source(root, path):
+    from app.cells import AreaRecord, GridSettings
+    from app.local import discover_local_csvs, scan_local_csv
+    selected = {"MODIS/MODIS_Terra_Aqua_near_real_time_2026.csv": "MODIS_NRT"}
+    assert discover_local_csvs(root, selected) == ((path, "MODIS_NRT"),)
+    world = AreaRecord(area_id="world", name="World", version="1", geometry={
+        "type": "Polygon", "coordinates": (((-180, -90), (180, -90),
+            (180, 90), (-180, 90), (-180, -90)),)})
+    result = scan_local_csv(path, root=root, source_id="MODIS_NRT",
+        grid=GridSettings(grid_version="grid-v1", width_km=10.0), area=world,
+        start_date=date(2026, 1, 1), end_date=date(2026, 1, 2),
+        platforms=("Aqua",), maximum_memberships=1)
+    assert result.rows_seen == 2 and result.rows_used == 2
+    assert result.bytes_read == path.stat().st_size and len(result.sha256) == 64
+    assert result.versions == ("6.1NRT", "6.1URT")
+    assert len(result.daily_cell_sets[date(2026, 1, 1)]) == 1
+    return result
+
+
+def _assert_processed_checkpoint(tmp_path, result):
+    from app.local import write_processed_checkpoint
+    checkpoint, digest = write_processed_checkpoint(
+        tmp_path / "processed-staging", "local-folder-v1", result, "a" * 64)
+    data = json.loads(checkpoint.read_bytes())
+    assert len(digest) == 64 and checkpoint.suffix == ".json"
+    assert set(data) == {"schema_version", "release_id", "source_id", "file_id",
+        "source_sha256", "versions", "selection_sha256", "daily_cell_sets",
+        "rows_seen", "rows_used", "bytes_read"}
+    assert not list(checkpoint.parent.glob("*.part"))
+
+
+def _append_changed_local_version(path, columns):
+    with path.open("a", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writerow({"latitude": "-14.5", "longitude": "-59.5", "brightness": "300",
+            "scan": "1", "track": "1", "acq_date": "2026-01-01", "acq_time": "1202",
+            "satellite": "A", "instrument": "MODIS", "confidence": "nominal",
+            "version": "6.2NRT", "bright_t31": "290", "frp": "1", "daynight": "D"})
+
+
+def _check_local_source(tmp_path):
+    root, path, columns = _write_local_source(tmp_path)
+    result = _scan_local_source(root, path)
+    _assert_processed_checkpoint(tmp_path, result)
+    _append_changed_local_version(path, columns)
+    from app.cells import AreaRecord, GridSettings
+    from app.local import discover_local_csvs, scan_local_csv
+    world = AreaRecord(area_id="world", name="World", version="1", geometry={
+        "type": "Polygon", "coordinates": (((-180, -90), (180, -90),
+            (180, 90), (-180, 90), (-180, -90)),)})
+    with pytest.raises(ValueError, match="version changed"):
+        scan_local_csv(path, root=root, source_id="MODIS_NRT",
+            grid=GridSettings(grid_version="grid-v1", width_km=10.0), area=world,
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 2),
+            platforms=("Aqua",), maximum_memberships=1)
+    (root / "unknown.csv").write_text("ignored")
+    assert discover_local_csvs(root, {"MODIS/MODIS_Terra_Aqua_near_real_time_2026.csv": "MODIS_NRT"}) == ((path, "MODIS_NRT"),)
+
+
+@pytest.fixture
+def local_source_check():
+    return _check_local_source

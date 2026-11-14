@@ -170,7 +170,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HotspotQuery"
+                "$ref": "#/components/schemas/app__models__HotspotQuery"
               }
             }
           },
@@ -222,6 +222,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CellMapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/hotspots/query": {
+      "post": {
+        "summary": "Query Hotspots",
+        "operationId": "query_area_hotspots",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__area_queries__HotspotQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotspotResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/hotspots/summaries/query": {
+      "post": {
+        "summary": "Query Summaries",
+        "operationId": "query_area_summaries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SummaryQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
                 }
               }
             }
@@ -542,6 +618,38 @@
         ],
         "title": "BandRecord"
       },
+      "CellFeature": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "Feature"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Properties"
+          },
+          "geometry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geometry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "properties",
+          "geometry"
+        ],
+        "title": "CellFeature"
+      },
       "CellMapFeature": {
         "properties": {
           "type": {
@@ -668,6 +776,11 @@
             "format": "date",
             "title": "Date"
           },
+          "requested_selector": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Requested Selector"
+          },
           "active_cell_count": {
             "anyOf": [
               {
@@ -682,6 +795,14 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -691,6 +812,7 @@
           "release_id",
           "grid_version",
           "date",
+          "requested_selector",
           "active_cell_count",
           "status"
         ],
@@ -788,6 +910,35 @@
           "valid_coverage_fraction"
         ],
         "title": "CoverageResult"
+      },
+      "DailySummary": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "active_cell_count": {
+            "type": "integer",
+            "title": "Active Cell Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "input_state": {
+            "type": "string",
+            "title": "Input State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "active_cell_count",
+          "status",
+          "input_state"
+        ],
+        "title": "DailySummary"
       },
       "ExportRequest": {
         "properties": {
@@ -1060,7 +1211,7 @@
             "title": "Features"
           },
           "query": {
-            "$ref": "#/components/schemas/HotspotQuery"
+            "$ref": "#/components/schemas/HotspotQuery-Output"
           },
           "release_id": {
             "type": "string",
@@ -1196,7 +1347,7 @@
         ],
         "title": "HotspotProperties"
       },
-      "HotspotQuery": {
+      "HotspotQuery-Output": {
         "properties": {
           "release_id": {
             "type": "string",
@@ -1266,6 +1417,101 @@
           "platforms"
         ],
         "title": "HotspotQuery"
+      },
+      "HotspotResponse": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "area_id": {
+            "type": "string",
+            "title": "Area Id"
+          },
+          "area_name": {
+            "type": "string",
+            "title": "Area Name"
+          },
+          "catalog_version": {
+            "type": "string",
+            "title": "Catalog Version"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "grid_versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Grid Versions"
+          },
+          "active_cell_count": {
+            "type": "integer",
+            "title": "Active Cell Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "FeatureCollection"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/CellFeature"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "returned_count": {
+            "type": "integer",
+            "title": "Returned Count"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "release_id",
+          "area_id",
+          "area_name",
+          "catalog_version",
+          "date",
+          "grid_versions",
+          "active_cell_count",
+          "status",
+          "warnings",
+          "features",
+          "returned_count",
+          "has_more",
+          "next_cursor"
+        ],
+        "title": "HotspotResponse"
       },
       "JsonValue": {},
       "MetricDefinition": {
@@ -1788,6 +2034,85 @@
         ],
         "title": "SourceFileRecord"
       },
+      "SummaryQuery": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "area_name": {
+            "type": "string",
+            "title": "Area Name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "area_name",
+          "start_date",
+          "end_date"
+        ],
+        "title": "SummaryQuery"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "area_id": {
+            "type": "string",
+            "title": "Area Id"
+          },
+          "area_name": {
+            "type": "string",
+            "title": "Area Name"
+          },
+          "catalog_version": {
+            "type": "string",
+            "title": "Catalog Version"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailySummary"
+            },
+            "type": "array",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "release_id",
+          "area_id",
+          "area_name",
+          "catalog_version",
+          "start_date",
+          "end_date",
+          "days"
+        ],
+        "title": "SummaryResponse"
+      },
       "UncertaintyResult": {
         "properties": {
           "lower": {
@@ -1851,6 +2176,118 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "app__area_queries__HotspotQuery": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "area_name": {
+            "type": "string",
+            "title": "Area Name"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 1000
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "area_name",
+          "date"
+        ],
+        "title": "HotspotQuery"
+      },
+      "app__models__HotspotQuery": {
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "title": "Release Id"
+          },
+          "bbox": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "platforms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Platforms"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 1000
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "release_id",
+          "bbox",
+          "start_date",
+          "end_date",
+          "platforms"
+        ],
+        "title": "HotspotQuery"
       }
     }
   }

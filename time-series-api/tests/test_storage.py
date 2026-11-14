@@ -160,9 +160,28 @@ def test_storage_round_trip(candidate, tmp_path):
     assert store.read_hotspot_cells(cell_store, "grid-v1", ("0:0",)) == (cell,)
     with pytest.raises(ValueError, match="missing"):
         store.read_hotspot_cells(cell_store, "grid-v1", ("1:0",))
+    grid_two = cells.GridSettings(grid_version="grid-v2", width_km=10.0)
+    cell_two = cells.CellRecord(grid_version="grid-v2", cell_id="0:0",
+        center_longitude=107.5, center_latitude=10.5,
+        geometry={"type": "Polygon", "coordinates": (((107, 10), (108, 10),
+            (108, 11), (107, 11), (107, 10)),)})
+    summary_two = cells.DailyHotspotSummary(release_id="cell-v2", area_id="pilot",
+        date=date(2026, 1, 1), active_cell_count=1, hotspot_cell_ids=("0:0",), status="available")
+    manifest_two = manifest.model_copy(update={"release_id": "cell-v2", "grid_version": "grid-v2",
+                                               "grid": grid_two})
+    store.publish_cell_release(cell_store, iter((cell_two,)), iter((summary_two,)),
+                               manifest_two, cell_settings)
+    assert store.read_hotspot_cells(cell_store, "grid-v2", ("0:0",)) == (cell_two,)
+    assert store.read_hotspot_summary(cell_store, "cell-v2", "pilot", date(2026, 1, 1)) == summary_two
+    assert store.read_hotspot_cell_ids_in_bbox(cell_store, "grid-v1", ("0:0",),
+                                                (106, 10, 107, 11)) == ("0:0",)
+    assert store.read_hotspot_cell_ids_in_bbox(cell_store, "grid-v1", ("0:0",),
+                                                (0, 0, 1, 1)) == ()
+    with pytest.raises(ApiError):
+        store.read_hotspot_summary(cell_store, "cell-v1", "pilot", date(2026, 1, 2))
 
 
-def test_failed_publish_rolls_back(candidate, monkeypatch):
+def test_failed_publish_rolls_back(candidate, monkeypatch, tmp_path):
     store = import_module("app.storage")
     settings, manifest, report, batch = candidate("release-a", "file-a")
     closed = []
@@ -217,6 +236,43 @@ def test_failed_publish_rolls_back(candidate, monkeypatch):
     with pytest.raises(ValueError, match="validated"):
         store.publish_release(settings.database_path, iter([batch]), iter(()), guessed_manifest, guessed_report, storage=settings)
     assert store.list_releases(settings.database_path) == ()
+
+    cells = import_module("app.cells")
+    processed_settings = StorageSettings(database_path=tmp_path / "processed.sqlite3",
+        staging_path=tmp_path / "processed-staging", releases_path=tmp_path / "processed-releases",
+        saved_bytes_limit=1_000_000, temporary_bytes_limit=1_000_000)
+    cell = cells.CellRecord(grid_version="grid-v1", cell_id="0:0",
+        center_longitude=106.5, center_latitude=10.5,
+        geometry={"type": "Polygon", "coordinates": (((106, 10), (107, 10),
+            (107, 11), (106, 11), (106, 10)),)})
+    cell_manifest = cells.CellReleaseManifest(release_id="cell-base", grid_version="grid-v1",
+        start_date=date(2026, 1, 1), end_date=date(2026, 1, 2),
+        grid={"grid_version": "grid-v1", "width_km": 10.0},
+        areas={"pilot": {"version": "1", "geometry": cell.geometry}}, sources=(),
+        code_version="test", catalog_sha256="0" * 64)
+    cell_summary = cells.DailyHotspotSummary(release_id="cell-base", area_id="pilot",
+        date=date(2026, 1, 1), active_cell_count=1, hotspot_cell_ids=("0:0",), status="available")
+    store.initialize_cell_database(processed_settings.database_path)
+    store.publish_cell_release(processed_settings.database_path, iter((cell,)),
+        iter((cell_summary,)), cell_manifest, processed_settings)
+    changed_cell = cells.CellRecord(grid_version="grid-v1", cell_id="0:0",
+        center_longitude=106.6, center_latitude=10.5,
+        geometry={"type": "Polygon", "coordinates": (((106, 10), (107, 10),
+            (107, 11), (106, 11), (106, 10)),)})
+    bad_geometry_manifest = cell_manifest.model_copy(update={"release_id": "bad-geometry"})
+    bad_geometry_summary = cell_summary.model_copy(update={"release_id": "bad-geometry"})
+    with pytest.raises(ValueError, match="shape changed"):
+        store.publish_cell_release(processed_settings.database_path, iter((changed_cell,)),
+            iter((bad_geometry_summary,)), bad_geometry_manifest, processed_settings)
+    assert not (processed_settings.releases_path / "bad-geometry").exists()
+    assert store.read_hotspot_cells(processed_settings.database_path, "grid-v1", ("0:0",)) == (cell,)
+    bad_summary_manifest = cell_manifest.model_copy(update={"release_id": "bad-summary"})
+    bad_summary = cell_summary.model_copy(update={"release_id": "bad-summary",
+        "hotspot_cell_ids": ("1:0",)})
+    with pytest.raises(ValueError, match="missing hotspot cell shape"):
+        store.publish_cell_release(processed_settings.database_path, iter((cell,)),
+            iter((bad_summary,)), bad_summary_manifest, processed_settings)
+    assert not (processed_settings.releases_path / "bad-summary").exists()
 
 
 def test_old_release_is_unchanged_after_publication(candidate):
