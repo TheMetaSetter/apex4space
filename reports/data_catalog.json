@@ -1,0 +1,708 @@
+{
+  "generated_at_utc": "2026-11-11T09:35:31Z",
+  "root": "Data",
+  "scope": "metadata catalog; no geographic filtering applied",
+  "files": [
+    {
+      "file": "Data/01_MODIS_C6/MODIS_Terra_Aqua_archive_2000-2026.csv",
+      "size_bytes": 1408411858,
+      "rows": 17637410,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight",
+        "type"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2000-11-01",
+      "date_max": "2026-08-31",
+      "latitude_range": [
+        -54.9,
+        12.9
+      ],
+      "longitude_range": [
+        -95.3922,
+        -31.0876
+      ],
+      "satellite_counts": {
+        "Terra": 6745149,
+        "Aqua": 10892261
+      },
+      "instrument_counts": {
+        "MODIS": 17637410
+      },
+      "version_counts": {
+        "6.03": 15334928,
+        "61.03": 2302482
+      },
+      "confidence_counts": {
+        "67": 319496,
+        "26": 56899,
+        "71": 327355,
+        "44": 144955,
+        "81": 295705,
+        "49": 178530,
+        "51": 194055,
+        "100": 1472433,
+        "97": 133409,
+        "42": 134588,
+        "52": 201531,
+        "90": 209468,
+        "60": 275679,
+        "34": 92563,
+        "48": 170832,
+        "91": 198433,
+        "88": 229271,
+        "83": 273163,
+        "47": 164328,
+        "74": 324952,
+        "31": 78421,
+        "79": 309781,
+        "95": 152554,
+        "82": 285462,
+        "65": 312844,
+        "87": 259404,
+        "55": 228860,
+        "64": 306533,
+        "94": 209765,
+        "54": 219317,
+        "80": 303988,
+        "73": 326033,
+        "77": 317496,
+        "96": 143934,
+        "86": 250411,
+        "63": 299633,
+        "89": 220327,
+        "39": 118801,
+        "38": 112514,
+        "68": 323303,
+        "57": 247883,
+        "58": 257802,
+        "78": 313060,
+        "62": 291748,
+        "40": 123261,
+        "45": 152371,
+        "76": 319767,
+        "50": 185283,
+        "41": 127877,
+        "46": 158045,
+        "69": 324802,
+        "28": 65300,
+        "29": 69822,
+        "93": 177443,
+        "99": 117143,
+        "35": 97236,
+        "7": 5230,
+        "59": 267909,
+        "43": 139698,
+        "30": 74044,
+        "33": 87491,
+        "72": 326367,
+        "32": 83304,
+        "84": 264724,
+        "85": 257652,
+        "75": 334461,
+        "53": 209744,
+        "56": 237977,
+        "37": 107081,
+        "66": 315474,
+        "61": 283295,
+        "70": 327013,
+        "0": 156674,
+        "11": 11147,
+        "14": 16936,
+        "25": 52734,
+        "36": 102869,
+        "18": 27725,
+        "92": 188417,
+        "98": 125676,
+        "27": 61279,
+        "23": 45075,
+        "24": 48766,
+        "21": 37297,
+        "6": 4064,
+        "20": 33842,
+        "17": 24573,
+        "19": 30755,
+        "4": 2228,
+        "22": 41263,
+        "16": 21980,
+        "2": 1032,
+        "8": 6492,
+        "10": 9444,
+        "13": 14883,
+        "15": 19475,
+        "12": 12713,
+        "5": 3152,
+        "9": 7631,
+        "3": 1555,
+        "1": 400
+      },
+      "daynight_counts": {
+        "N": 3662384,
+        "D": 13975026
+      },
+      "type_counts": {
+        "0": 16965887,
+        "2": 626334,
+        "3": 24948,
+        "1": 20241
+      },
+      "product_type": "archive"
+    },
+    {
+      "file": "Data/01_MODIS_C6/MODIS_Terra_Aqua_near_real_time_2026.csv",
+      "size_bytes": 14333689,
+      "rows": 164527,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2026-09-01",
+      "date_max": "2026-11-11",
+      "latitude_range": [
+        -51.64205,
+        12.85285
+      ],
+      "longitude_range": [
+        -91.37524,
+        -33.81455
+      ],
+      "satellite_counts": {
+        "Terra": 62830,
+        "Aqua": 101697
+      },
+      "instrument_counts": {
+        "MODIS": 164527
+      },
+      "version_counts": {
+        "6.1NRT": 164527
+      },
+      "confidence_counts": {
+        "70": 3444,
+        "59": 2517,
+        "72": 3269,
+        "100": 15768,
+        "90": 1850,
+        "50": 1518,
+        "27": 472,
+        "79": 2951,
+        "78": 2969,
+        "88": 2193,
+        "71": 3452,
+        "58": 2401,
+        "83": 2500,
+        "44": 1113,
+        "93": 1588,
+        "98": 1143,
+        "95": 1387,
+        "74": 3280,
+        "42": 1029,
+        "63": 3149,
+        "62": 3060,
+        "81": 2782,
+        "92": 1707,
+        "97": 1259,
+        "84": 2441,
+        "65": 3327,
+        "45": 1099,
+        "61": 2864,
+        "76": 3206,
+        "56": 2138,
+        "94": 1820,
+        "73": 3353,
+        "64": 3113,
+        "40": 921,
+        "41": 934,
+        "68": 3405,
+        "85": 2423,
+        "87": 2269,
+        "38": 846,
+        "52": 1690,
+        "17": 207,
+        "47": 1267,
+        "99": 1096,
+        "29": 549,
+        "31": 547,
+        "69": 3512,
+        "24": 414,
+        "60": 2811,
+        "34": 705,
+        "67": 3403,
+        "39": 838,
+        "37": 791,
+        "77": 3192,
+        "75": 3308,
+        "55": 1961,
+        "49": 1411,
+        "21": 302,
+        "53": 1772,
+        "89": 1977,
+        "96": 1330,
+        "80": 2785,
+        "66": 3289,
+        "8": 53,
+        "46": 1195,
+        "86": 2346,
+        "43": 1025,
+        "16": 184,
+        "91": 1867,
+        "20": 282,
+        "25": 400,
+        "33": 621,
+        "54": 1775,
+        "28": 487,
+        "14": 148,
+        "30": 556,
+        "26": 414,
+        "48": 1321,
+        "22": 289,
+        "57": 2338,
+        "12": 108,
+        "36": 754,
+        "51": 1598,
+        "15": 172,
+        "35": 740,
+        "82": 2567,
+        "13": 132,
+        "9": 77,
+        "5": 35,
+        "23": 373,
+        "0": 1123,
+        "32": 619,
+        "11": 105,
+        "18": 208,
+        "7": 55,
+        "19": 268,
+        "10": 84,
+        "2": 7,
+        "3": 12,
+        "6": 41,
+        "4": 26,
+        "1": 5
+      },
+      "daynight_counts": {
+        "N": 54914,
+        "D": 109613
+      },
+      "type_counts": {},
+      "product_type": "near_real_time"
+    },
+    {
+      "file": "Data/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_archive_2012-2026.csv",
+      "size_bytes": 2947153227,
+      "rows": 36093545,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight",
+        "type"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2012-01-20",
+      "date_max": "2026-07-31",
+      "latitude_range": [
+        -54.81178,
+        12.9
+      ],
+      "longitude_range": [
+        -95.47909,
+        -31.25116
+      ],
+      "satellite_counts": {
+        "SNPP": 36093545
+      },
+      "instrument_counts": {
+        "SNPP": 36093545
+      },
+      "version_counts": {
+        "2": 36093545
+      },
+      "confidence_counts": {
+        "n": 30961863,
+        "h": 2254557,
+        "l": 2877125
+      },
+      "daynight_counts": {
+        "N": 10851144,
+        "D": 25242401
+      },
+      "type_counts": {
+        "0": 34713974,
+        "2": 1214934,
+        "3": 135016,
+        "1": 29621
+      },
+      "product_type": "archive"
+    },
+    {
+      "file": "Data/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_near_real_time_2026.csv",
+      "size_bytes": 64702393,
+      "rows": 764484,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2026-08-01",
+      "date_max": "2026-11-02",
+      "latitude_range": [
+        -54.45939,
+        12.89861
+      ],
+      "longitude_range": [
+        -87.63415,
+        -34.54979
+      ],
+      "satellite_counts": {
+        "SNPP": 764484
+      },
+      "instrument_counts": {
+        "SNPP": 764484
+      },
+      "version_counts": {
+        "2.0NRT": 764484
+      },
+      "confidence_counts": {
+        "n": 648273,
+        "h": 49070,
+        "l": 67141
+      },
+      "daynight_counts": {
+        "N": 216166,
+        "D": 548318
+      },
+      "type_counts": {},
+      "product_type": "near_real_time"
+    },
+    {
+      "file": "Data/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_archive_2018-2026.csv",
+      "size_bytes": 1753113864,
+      "rows": 21456357,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight",
+        "type"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2018-04-01",
+      "date_max": "2026-07-31",
+      "latitude_range": [
+        -55.23397,
+        12.89999
+      ],
+      "longitude_range": [
+        -95.47302,
+        -31.34202
+      ],
+      "satellite_counts": {
+        "N20": 21456357
+      },
+      "instrument_counts": {
+        "VIIRS": 21456357
+      },
+      "version_counts": {
+        "2": 21456357
+      },
+      "confidence_counts": {
+        "n": 18518401,
+        "h": 1155776,
+        "l": 1782180
+      },
+      "daynight_counts": {
+        "N": 6776552,
+        "D": 14679805
+      },
+      "type_counts": {
+        "2": 660677,
+        "0": 20696601,
+        "3": 80436,
+        "1": 18643
+      },
+      "product_type": "archive"
+    },
+    {
+      "file": "Data/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_near_real_time_2026.csv",
+      "size_bytes": 70265198,
+      "rows": 830112,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2026-08-01",
+      "date_max": "2026-11-11",
+      "latitude_range": [
+        -54.45819,
+        12.89293
+      ],
+      "longitude_range": [
+        -90.80453,
+        -34.80654
+      ],
+      "satellite_counts": {
+        "N20": 830112
+      },
+      "instrument_counts": {
+        "VIIRS": 830112
+      },
+      "version_counts": {
+        "2.0NRT": 830112
+      },
+      "confidence_counts": {
+        "n": 710316,
+        "h": 43121,
+        "l": 76675
+      },
+      "daynight_counts": {
+        "N": 250508,
+        "D": 579604
+      },
+      "type_counts": {},
+      "product_type": "near_real_time"
+    },
+    {
+      "file": "Data/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_archive_2023-2026.csv",
+      "size_bytes": 681199204,
+      "rows": 8339325,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight",
+        "type"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2023-03-01",
+      "date_max": "2026-07-31",
+      "latitude_range": [
+        -55.25494,
+        12.89997
+      ],
+      "longitude_range": [
+        -94.7186,
+        -32.30526
+      ],
+      "satellite_counts": {
+        "N21": 8339325
+      },
+      "instrument_counts": {
+        "VIIRS": 8339325
+      },
+      "version_counts": {
+        "2": 8339325
+      },
+      "confidence_counts": {
+        "n": 7139322,
+        "h": 522377,
+        "l": 677626
+      },
+      "daynight_counts": {
+        "N": 2920319,
+        "D": 5419006
+      },
+      "type_counts": {
+        "0": 8038955,
+        "2": 264990,
+        "3": 30594,
+        "1": 4786
+      },
+      "product_type": "archive"
+    },
+    {
+      "file": "Data/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_near_real_time_2026.csv",
+      "size_bytes": 67723546,
+      "rows": 800041,
+      "columns": [
+        "latitude",
+        "longitude",
+        "brightness",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_t31",
+        "frp",
+        "daynight"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2026-08-01",
+      "date_max": "2026-11-11",
+      "latitude_range": [
+        -54.45951,
+        12.89826
+      ],
+      "longitude_range": [
+        -87.62422,
+        -31.54981
+      ],
+      "satellite_counts": {
+        "N21": 800041
+      },
+      "instrument_counts": {
+        "VIIRS": 800041
+      },
+      "version_counts": {
+        "2.0NRT": 800041
+      },
+      "confidence_counts": {
+        "n": 672924,
+        "h": 53590,
+        "l": 73527
+      },
+      "daynight_counts": {
+        "N": 255098,
+        "D": 544943
+      },
+      "type_counts": {},
+      "product_type": "near_real_time"
+    },
+    {
+      "file": "Data/sample_VIIRS_Suomi_NPP_global_2023-07-12.csv",
+      "size_bytes": 6077404,
+      "rows": 74605,
+      "columns": [
+        "latitude",
+        "longitude",
+        "bright_ti4",
+        "scan",
+        "track",
+        "acq_date",
+        "acq_time",
+        "satellite",
+        "instrument",
+        "confidence",
+        "version",
+        "bright_ti5",
+        "frp",
+        "daynight"
+      ],
+      "missing_required_columns": [],
+      "malformed_rows": 0,
+      "date_min": "2023-07-12",
+      "date_max": "2023-07-12",
+      "latitude_range": [
+        -77.52732,
+        71.09212
+      ],
+      "longitude_range": [
+        -164.05351,
+        178.79655
+      ],
+      "satellite_counts": {
+        "N": 74605
+      },
+      "instrument_counts": {
+        "VIIRS": 74605
+      },
+      "version_counts": {
+        "2.0NRT": 69507,
+        "2.0URT": 5098
+      },
+      "confidence_counts": {
+        "n": 64901,
+        "h": 4912,
+        "l": 4792
+      },
+      "daynight_counts": {
+        "N": 18891,
+        "D": 55714
+      },
+      "type_counts": {},
+      "product_type": "sample_or_unknown"
+    }
+  ]
+}

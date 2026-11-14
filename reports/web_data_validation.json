@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "scope": "generated web artifacts and internal reconciliations; not a fresh full scan of all source rows",
+  "months": 313,
+  "observations": 84949359,
+  "hotspot_cell_days": 43782629,
+  "map_date": "2023-07-12",
+  "cell_day_geojson_features": 5330,
+  "point_geojson_features": 12560,
+  "handoff_zip": "PASS"
+}

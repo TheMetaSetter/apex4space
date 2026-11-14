@@ -1,0 +1,80 @@
+{
+  "generated_at_utc": "2026-11-13T01:28:30Z",
+  "boundary": "Data/boundaries/south_america.geojson",
+  "boundary_feature_count": 14,
+  "scope": "point-in-polygon filter; source CSVs unchanged",
+  "files": [
+    {
+      "source_file": "Data/01_MODIS_C6/MODIS_Terra_Aqua_archive_2000-2026.csv",
+      "output_file": "processed/south_america/01_MODIS_C6/MODIS_Terra_Aqua_archive_2000-2026.csv",
+      "rows_in": 17637410,
+      "rows_out": 17468845,
+      "rows_outside_boundary": 168565,
+      "invalid_coordinates": 0,
+      "size_bytes": 1412600469
+    },
+    {
+      "source_file": "Data/01_MODIS_C6/MODIS_Terra_Aqua_near_real_time_2026.csv",
+      "output_file": "processed/south_america/01_MODIS_C6/MODIS_Terra_Aqua_near_real_time_2026.csv",
+      "rows_in": 164527,
+      "rows_out": 164268,
+      "rows_outside_boundary": 259,
+      "invalid_coordinates": 0,
+      "size_bytes": 14475463
+    },
+    {
+      "source_file": "Data/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_archive_2012-2026.csv",
+      "output_file": "processed/south_america/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_archive_2012-2026.csv",
+      "rows_in": 36093545,
+      "rows_out": 35544666,
+      "rows_outside_boundary": 548879,
+      "invalid_coordinates": 0,
+      "size_bytes": 2938200280
+    },
+    {
+      "source_file": "Data/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_near_real_time_2026.csv",
+      "output_file": "processed/south_america/02_VIIRS_SNPP_C2/VIIRS_Suomi_NPP_near_real_time_2026.csv",
+      "rows_in": 764484,
+      "rows_out": 762104,
+      "rows_outside_boundary": 2380,
+      "invalid_coordinates": 0,
+      "size_bytes": 65263794
+    },
+    {
+      "source_file": "Data/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_archive_2018-2026.csv",
+      "output_file": "processed/south_america/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_archive_2018-2026.csv",
+      "rows_in": 21456357,
+      "rows_out": 21164443,
+      "rows_outside_boundary": 291914,
+      "invalid_coordinates": 0,
+      "size_bytes": 1750608701
+    },
+    {
+      "source_file": "Data/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_near_real_time_2026.csv",
+      "output_file": "processed/south_america/03_VIIRS_NOAA20_C2/VIIRS_NOAA20_near_real_time_2026.csv",
+      "rows_in": 830112,
+      "rows_out": 827257,
+      "rows_outside_boundary": 2855,
+      "invalid_coordinates": 0,
+      "size_bytes": 70851769
+    },
+    {
+      "source_file": "Data/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_archive_2023-2026.csv",
+      "output_file": "processed/south_america/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_archive_2023-2026.csv",
+      "rows_in": 8339325,
+      "rows_out": 8220603,
+      "rows_outside_boundary": 118722,
+      "invalid_coordinates": 0,
+      "size_bytes": 679787039
+    },
+    {
+      "source_file": "Data/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_near_real_time_2026.csv",
+      "output_file": "processed/south_america/04_VIIRS_NOAA21_C2/VIIRS_NOAA21_near_real_time_2026.csv",
+      "rows_in": 800041,
+      "rows_out": 797175,
+      "rows_outside_boundary": 2866,
+      "invalid_coordinates": 0,
+      "size_bytes": 68279038
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "generated_at_utc": "2026-11-13T03:23:11Z",
+  "rule": "Exclude rows with invalid or negative FRP; raw and pre-QC processed files unchanged.",
+  "files": [
+    {
+      "source_file": "processed/by_sensor/MODIS_south_america_all_available.csv",
+      "output_file": "processed/quality_controlled/MODIS_south_america_all_available.csv",
+      "rows_in": 17633113,
+      "rows_kept": 17633111,
+      "rows_excluded": 2
+    },
+    {
+      "source_file": "processed/by_sensor/VIIRS_NOAA20_south_america_all_available.csv",
+      "output_file": "processed/quality_controlled/VIIRS_NOAA20_south_america_all_available.csv",
+      "rows_in": 21991700,
+      "rows_kept": 21991700,
+      "rows_excluded": 0
+    },
+    {
+      "source_file": "processed/by_sensor/VIIRS_NOAA21_south_america_all_available.csv",
+      "output_file": "processed/quality_controlled/VIIRS_NOAA21_south_america_all_available.csv",
+      "rows_in": 9017778,
+      "rows_kept": 9017778,
+      "rows_excluded": 0
+    },
+    {
+      "source_file": "processed/by_sensor/VIIRS_SNPP_south_america_all_available.csv",
+      "output_file": "processed/quality_controlled/VIIRS_SNPP_south_america_all_available.csv",
+      "rows_in": 36306770,
+      "rows_kept": 36306770,
+      "rows_excluded": 0
+    }
+  ],
+  "exclusions": [
+    {
+      "source_file": "processed/by_sensor/MODIS_south_america_all_available.csv",
+      "source_row_number": 5054465,
+      "reason": "negative_frp",
+      "frp": "-21"
+    },
+    {
+      "source_file": "processed/by_sensor/MODIS_south_america_all_available.csv",
+      "source_row_number": 14134438,
+      "reason": "negative_frp",
+      "frp": "-1.3"
+    }
+  ]
+}

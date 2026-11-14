@@ -1,0 +1,77 @@
+{
+  "scope": "normalized archive+NRT by-sensor outputs",
+  "files": [
+    {
+      "file": "processed/by_sensor/MODIS_south_america_all_available.csv",
+      "rows": 17633113,
+      "columns_match": true,
+      "rows_with_any_invalid": 2,
+      "invalid_counts": {
+        "negative_frp": 2
+      },
+      "date_min": "2000-11-01",
+      "date_max": "2026-11-11",
+      "sensor_counts": {
+        "MODIS": 17633113
+      },
+      "product_counts": {
+        "archive": 17468845,
+        "near_real_time": 164268
+      }
+    },
+    {
+      "file": "processed/by_sensor/VIIRS_NOAA20_south_america_all_available.csv",
+      "rows": 21991700,
+      "columns_match": true,
+      "rows_with_any_invalid": 0,
+      "invalid_counts": {},
+      "date_min": "2018-04-01",
+      "date_max": "2026-11-11",
+      "sensor_counts": {
+        "VIIRS": 21991700
+      },
+      "product_counts": {
+        "archive": 21164443,
+        "near_real_time": 827257
+      }
+    },
+    {
+      "file": "processed/by_sensor/VIIRS_NOAA21_south_america_all_available.csv",
+      "rows": 9017778,
+      "columns_match": true,
+      "rows_with_any_invalid": 0,
+      "invalid_counts": {},
+      "date_min": "2023-03-01",
+      "date_max": "2026-11-11",
+      "sensor_counts": {
+        "VIIRS": 9017778
+      },
+      "product_counts": {
+        "archive": 8220603,
+        "near_real_time": 797175
+      }
+    },
+    {
+      "file": "processed/by_sensor/VIIRS_SNPP_south_america_all_available.csv",
+      "rows": 36306770,
+      "columns_match": true,
+      "rows_with_any_invalid": 0,
+      "invalid_counts": {},
+      "date_min": "2012-01-20",
+      "date_max": "2026-11-02",
+      "sensor_counts": {
+        "VIIRS": 36306770
+      },
+      "product_counts": {
+        "archive": 35544666,
+        "near_real_time": 762104
+      }
+    }
+  ],
+  "all_headers_valid": true,
+  "total_invalid_counts": {
+    "negative_frp": 2
+  },
+  "report_status": "historical_pre_quality_control",
+  "note": "This report audits processed/by_sensor files from the earlier build, not the currently retained processed/quality_controlled outputs. It found two negative-FRP rows that were subsequently excluded. Do not use this file as the current final-output validation; see web_data_validation.json."
+}
