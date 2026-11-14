@@ -220,10 +220,10 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Prompts and other artifacts
-prompts/
-AGENTS.md
-codebase_preferences.md
-python_semantics.md
+# prompts/
+# AGENTS.md
+# codebase_preferences.md
+# python_semantics.md
 time-series-api/notebooks/preprocess_tabular.ipynb
 documents/specs/brainstorming.md
 ref-codebases/
