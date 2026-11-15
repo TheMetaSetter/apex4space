@@ -1056,3 +1056,41 @@ The latter returns `release_id`, `start_date`, `end_date`, and `boundaries`
 (display-only GeoJSON). `web-app/serve.py` starts it on 127.0.0.1:8000.
 The frontend calls the existing v2 route payloads unchanged. OpenLayers
 replaces Leaflet by user request; no database or API object names change.
+
+### Frism additions — 2026-11-15
+
+- `YearQuery`: release_id, area_name, year, offset=0, page_size=10000.
+- `ChatQuery`: question, area_name, years, date, history.
+- `DataIntent`: validated general/daily/monthly/yearly/compare/clarify intent.
+- `year_result(query, request)`: shared read-only annual data and provenance.
+- `query_year(query, request)`: paged GeoJSON and complete year stats.
+- `query_chat(query, request)`: local Ollama planning, fixed data queries and answer.
+- `prepare(source_zip, output_dir, focus_continent='South America')`: now supports North America.
+
+### Parquet additions — 2026-11-15
+
+- `StorageSettings.data_format`: Literal['sqlite','parquet'], default sqlite.
+- `GridProvenance`: additive source_projection, cell_size_m, membership_rule,
+  equal_area, metric, source_dates, grid_version and geometry_rule response fields.
+- `parquet_data.manifest_for(settings, release_id=None)`: check selected release
+  inventory identity and source file stats before serving, including cached results.
+- `parquet_data.daily`, `summaries`, `year_result`, `year_page`: fixed Parquet
+  equivalents behind the unchanged public request paths and shared chat functions.
+- `prepare_parquet.publish(source, output, catalog, producer)`: validate monthly
+  country/cell/day files, hash sources and atomically publish new release metadata.
+
+Existing grid_version and cell_id objects are unchanged. The new Mercator
+source grid has a distinct grid_version; its grid_id is exposed as cell_id
+without implying equivalence with an earlier equal-area cell.
+
+### Global ranges — 2026-11-15
+
+- `DateRange`: release_id, area_name, inclusive start_date/end_date, offset=0,
+  page_size=10000, include_geometry=True, optional bbox in EPSG:4326.
+- `range_result`: exact whole-area range stats, provenance and compact cell counts.
+- `query_range`: optional viewport geometry pages; totals keep whole-area meaning.
+- `_range_counts`: shared cached Parquet aggregation; long periods use year chunks.
+- `ChatRange`: inclusive start_date/end_date; ChatQuery and DataIntent accept up
+  to two ranges and range/compare_ranges intents.
+- `_load_global`: checksum-checked name/membership catalog with optional valid
+  display polygons, preserving source code assignment and no geometry repair.

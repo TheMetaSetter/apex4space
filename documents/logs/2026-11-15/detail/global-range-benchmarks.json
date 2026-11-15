@@ -1,0 +1,46 @@
+[
+  {
+    "area": "World",
+    "start": "2024-02-29",
+    "end": "2024-02-29",
+    "seconds": 0.08,
+    "status": 200,
+    "cells": 30798,
+    "cell_days": 30798,
+    "error": null,
+    "peak_rss_bytes": 152092672
+  },
+  {
+    "area": "World",
+    "start": "2024-01-01",
+    "end": "2024-12-31",
+    "seconds": 1.94,
+    "status": 200,
+    "cells": 656093,
+    "cell_days": 11233633,
+    "error": null,
+    "peak_rss_bytes": 950059008
+  },
+  {
+    "area": "Viet Nam",
+    "start": "2024-01-01",
+    "end": "2024-12-31",
+    "seconds": 0.24,
+    "status": 200,
+    "cells": 3634,
+    "cell_days": 71684,
+    "error": null,
+    "peak_rss_bytes": 951926784
+  },
+  {
+    "area": "World",
+    "start": "2000-11-01",
+    "end": "2026-11-11",
+    "seconds": 3.22,
+    "status": 503,
+    "cells": null,
+    "cell_days": null,
+    "error": "The query exceeded its time or memory limit. Choose a shorter range or smaller area.",
+    "peak_rss_bytes": 1066074112
+  }
+]

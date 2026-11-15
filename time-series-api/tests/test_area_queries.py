@@ -15,6 +15,7 @@ def test_focused_area_pages_and_daily_summaries(tmp_path, monkeypatch):
     result = build_database([source], release)
     source_settings = Path(__file__).parents[1] / "config/settings.json"
     data = json.loads(source_settings.read_text())
+    data["storage"]["data_format"] = "sqlite"
     data["storage"]["global_release_path"] = str(release)
     data["storage"]["world_areas_path"] = "config"
     data["api"]["allowed_hosts"] = ["testserver", "localhost", "127.0.0.1"]

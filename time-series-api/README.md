@@ -1,5 +1,9 @@
 # Time-series API
 
+The current Frism website uses the checked North America Parquet release.
+See [current data and rollback instructions](../web-app/README.md#current-parquet-release--15-november-2026).
+The SQLite preparation and schema notes below remain available for the original releases.
+
 _Processed emergency responder hotspot cell pilot · 14 November 2026_
 
 ---
@@ -32,7 +36,7 @@ python scripts/check_results.py \
   --processed
 ```
 
-The processed database is `data/processed.sqlite3`; release manifests and validation records are in `data/processed-releases/`. The database has exactly two user tables: `hotspot_cell` and `daily_hotspot_summary`. The separate legacy database `data/service.sqlite3` is not modified.
+The processed database is `data/areas/mixed-areas/legacy-pilot/processed.sqlite3`; release manifests and validation records are in `data/areas/mixed-areas/legacy-pilot/releases/`. The database has exactly two user tables: `hotspot_cell` and `daily_hotspot_summary`. The separate legacy database `data/service.sqlite3` is not modified.
 
 Preparation writes temporary compact `.cells.json` checkpoints after each source passes its full-stream hash and unchanged-file checks. The checked release contains no CSV copy, raw row, row identifier list, FRP value, or raw-data table. The pilot checkpoints are removed after validation.
 
@@ -118,6 +122,11 @@ The API and stored data have been checked offline. Visible Leaflet rendering wit
 
 ## All-date FIRMS release
 
+Databases now live under `data/areas/<area>/<release>/`.
+See [the area folder guide](data/areas/README.md) for the current layout and
+commands for future imports. The original combined release stays under
+`mixed-areas` because it includes a global sample.
+
 The separate schema-2 database uses every valid row from the nine CSV files
 inside the downloaded FIRMS folder. It covers 2000-11-01 through 2026-11-11.
 The input files stay where they are; the importer reads them locally and does
@@ -129,17 +138,17 @@ subfolders, reads every date and sensor, and writes a new release directory:
 ```bash
 python scripts/preprocess_firms.py \
   --input /path/to/firms-csv-folder \
-  --output-dir data/global-releases/new-release
+  --output-dir data/areas/south-america/new-release
 ```
 
 The output folder must not already exist. It contains `database.sqlite3`,
 `manifest.json`, and `validation.json`. Check a release with:
 
 ```bash
-python scripts/check_results.py --schema2-release-dir data/global-releases/new-release
+python scripts/check_results.py --schema2-release-dir data/areas/south-america/new-release
 ```
 
-The current checked release is `data/global-releases/firms-v2`. Its ID is
+The current checked release is `data/areas/mixed-areas/firms-v2`. Its ID is
 `8796890e848f8a9ffb0ad255919fb7c469cdf6e0154fc50101139fd57dce6a49`. The
 SQLite file has three processed tables: `hotspot_cell`, `hotspot_cell_day`,
 and `daily_hotspot_summary`. It stores cell/day membership, not raw rows.

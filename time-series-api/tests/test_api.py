@@ -269,7 +269,7 @@ def _assert_openapi(client):
     saved_schema = json.loads((Path(__file__).parents[1] / "openapi.json").read_text())
     assert schema == saved_schema
     operations = {operation["operationId"] for path in schema["paths"].values() for operation in path.values()}
-    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "query_hotspot_cells", "export_results", "query_area_hotspots", "query_area_summaries"}
+    assert operations == {"health_live", "health_ready", "list_releases", "get_release", "list_metrics", "analyze", "query_hotspots", "query_hotspot_cells", "export_results", "query_area_hotspots", "query_area_summaries", "query_year", "query_chat", "query_range"}
     point = schema["components"]["schemas"]["PointGeometry"]
     assert point["properties"]["type"].get("const") == "Point"
     assert point["properties"]["coordinates"]["type"] == "array"

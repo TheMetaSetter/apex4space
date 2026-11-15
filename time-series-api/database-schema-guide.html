@@ -21,14 +21,14 @@ a{color:var(--green);text-underline-offset:3px}a:focus-visible,summary:focus-vis
 <main>
 <nav aria-label="Page sections"><a href="#all-dates">All-date database</a><a href="#flow">Pilot data flow</a><a href="#columns">Original columns</a><a href="#tables">Pilot tables</a><a href="#map">Map result</a><a href="#timescale">TimescaleDB later</a><a href="#sources">Sources</a></nav>
 <section id="all-dates"><div class="eyebrow muted">Schema 2 / All dates</div><h2>One checked database for the full input set.</h2>
-<p>The release at <code>data/global-releases/firms-v2</code> contains all nine local CSVs: 86,160,406 valid rows, 20,816,093 distinct cell/day memberships, 164,845 cells, and 9,507 daily rows from 2000-11-01 to 2026-11-11. It stores processed data only.</p>
+<p>The release at <code>data/areas/mixed-areas/firms-v2</code> contains all nine local CSVs: 86,160,406 valid rows, 20,816,093 distinct cell/day memberships, 164,845 cells, and 9,507 daily rows from 2000-11-01 to 2026-11-11. It stores processed data only.</p>
 <div class="table-wrap"><table><thead><tr><th>Table</th><th>Key</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>hotspot_cell</code></td><td><code>grid_version, cell_id</code></td><td>Cell index, bounds, WGS84 center, and full GeoJSON shape.</td></tr>
 <tr><td><code>hotspot_cell_day</code></td><td><code>release_id, date, grid_version, cell_id</code></td><td>One compact membership when a cell had one or more detections that UTC day.</td></tr>
 <tr><td><code>daily_hotspot_summary</code></td><td><code>release_id, date</code></td><td>Global active-cell count and input state for every day in the date range.</td></tr>
 </tbody></table></div>
 <p>V2 accepts Viet Nam and South America names. The backend includes cells whose centers are covered by the exact saved area polygon. It returns complete cell polygons as WGS84 GeoJSON; Leaflet sets its map CRS separately. A count of zero still has <code>coverage_unknown</code>.</p>
-<p>Build another release with <code>python scripts/preprocess_firms.py --input /path/to/csv-folder --output-dir data/global-releases/new-release</code>. Verify it with <code>python scripts/check_results.py --schema2-release-dir data/global-releases/new-release</code>.</p></section>
+<p>Build another release with <code>python scripts/preprocess_firms.py --input /path/to/csv-folder --output-dir data/areas/south-america/new-release</code>. Verify it with <code>python scripts/check_results.py --schema2-release-dir data/areas/south-america/new-release</code>.</p></section>
 <section id="flow">
 <div class="eyebrow muted">01 / Overview</div><h2>Prepare first. Query later.</h2>
 <div class="flow" aria-label="Data flow"><span>1. Saved CSVs</span><span>→ 2. Temporary detection reads</span><span>→ 3. Daily cell sets</span><span>→ 4. Saved area/day counts</span><span>→ 5. API → OpenLayers</span></div>

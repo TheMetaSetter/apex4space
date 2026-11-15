@@ -1,8 +1,8 @@
 {
   "storage": {
-    "database_path": "data/processed.sqlite3",
+    "database_path": "data/areas/mixed-areas/legacy-pilot/processed.sqlite3",
     "staging_path": "data/processed-staging",
-    "releases_path": "data/processed-releases",
+    "releases_path": "data/areas/mixed-areas/legacy-pilot/releases",
     "saved_bytes_limit": 524288000,
     "temporary_bytes_limit": 2147483648
   },

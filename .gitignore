@@ -205,6 +205,9 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# macOS metadata
+.DS_Store
+
 # Ruff stuff:
 .ruff_cache/
 
@@ -232,3 +235,6 @@ ref-codebases/
 /time-series-api/data/staging/
 /time-series-api/data/releases/
 *.sqlite3
+/.build/
+.vercel/
+.env.*

@@ -44,7 +44,8 @@ def _valid_geometry(geometry, label):
     return normalize(geometry)
 
 
-def prepare(source_zip, output_dir):
+def prepare(source_zip, output_dir, focus_continent="South America"):
+    continents = {focus_continent: focus_continent.lower().replace(" ", "-")}
     source_zip, output = Path(source_zip), Path(output_dir).expanduser().absolute()
     if shapefile.__version__ != "2.3.1":
         raise ValueError("catalog build requires pyshp==2.3.1")
@@ -60,11 +61,11 @@ def prepare(source_zip, output_dir):
     required = {"ADM0_A3", "ADMIN", "NAME", "ISO_A2", "ISO_A3", "CONTINENT"}
     if not required.issubset(fields):
         raise ValueError("Natural Earth archive is missing required fields")
-    countries, members, aliases, geometries, seen = [], {key: [] for key in CONTINENTS.values()}, {}, {}, set()
+    countries, members, aliases, geometries, seen = [], {key: [] for key in continents.values()}, {}, {}, set()
     outside_continents = []
     for index, (record, source_shape) in enumerate(zip(reader.iterRecords(), reader.iterShapes(), strict=True), 1):
         row = dict(zip(fields, record)); code = str(row["ADM0_A3"]).strip()
-        if code != "VNM" and row["CONTINENT"] != "South America":
+        if code != "VNM" and row["CONTINENT"] != focus_continent:
             continue
         if not code or code == "-99" or code in seen:
             raise ValueError(f"missing or duplicate ADM0_A3 at feature {index}")
@@ -72,7 +73,7 @@ def prepare(source_zip, output_dir):
         geometry = _valid_geometry(shape(source_shape.__geo_interface__), area_id)
         seen.add(code); geometries[area_id] = geometry
         countries.append({"type": "Feature", "id": area_id, "properties": {"area_id": area_id, "name": name, "area_type": "country"}, "geometry": mapping(geometry)})
-        continent = CONTINENTS.get(row["CONTINENT"])
+        continent = continents.get(row["CONTINENT"])
         if continent: members[continent].append(area_id)
         elif code != "VNM": outside_continents.append(area_id)
         for value in (name, row["NAME"], row["ISO_A2"], row["ISO_A3"]):
@@ -81,15 +82,15 @@ def prepare(source_zip, output_dir):
     aliases.update({normalize_name(key): set(value.split(",")) for key, value in {
         "VN": "country:VNM", "VNM": "country:VNM",
         "Vietnam": "country:VNM", "Viet Nam": "country:VNM", "Việt Nam": "country:VNM"}.items()})
-    for name, slug in CONTINENTS.items():
+    for name, slug in continents.items():
         area_id = f"continent:{slug}"
         if not members[slug]: raise ValueError(f"continent has no source members: {name}")
         geometry = _valid_geometry(unary_union([geometries[item] for item in members[slug]]), area_id)
         geometries[area_id] = geometry
         countries.append({"type": "Feature", "id": area_id, "properties": {"area_id": area_id, "name": name, "area_type": "continent"}, "geometry": mapping(geometry)})
         aliases.setdefault(normalize_name(name), set()).add(area_id)
-    for name in CONTINENTS:
-        aliases.setdefault("america", set()).add(f"continent:{CONTINENTS[name]}")
+    for name in continents:
+        aliases.setdefault("america", set()).add(f"continent:{continents[name]}")
     assets = {
         "world-areas.geojson": {"type": "FeatureCollection", "features": sorted(countries, key=lambda item: item["id"])},
         "area-aliases.json": {key: sorted(value) for key, value in sorted(aliases.items())},
@@ -103,7 +104,7 @@ def prepare(source_zip, output_dir):
     manifest = {"catalog_version": catalog_version, "catalog_sha256": catalog_hash,
         "source_url": SOURCE_URL, "source_sha256": source_hash, "source_version": VERSION,
         "source_attribution": "Made with Natural Earth.", "boundary_policy": "de-facto Admin-0 Countries",
-        "source_fields": sorted(required), "catalog_scope": ["country:VNM", "continent:south-america"],
+        "source_fields": sorted(required), "catalog_scope": ["country:VNM", *[f"continent:{slug}" for slug in continents.values()]],
         "feature_count": len(countries),
         "continent_members": members, "non_continental_area_ids": sorted(outside_continents),
         "build_tools": {"python": sys.version, "pyshp": shapefile.__version__,
@@ -121,8 +122,9 @@ def prepare(source_zip, output_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-zip", required=True); parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--continent", choices=["South America", "North America"], default="South America")
     args = parser.parse_args()
-    try: print(canonical(prepare(args.source_zip, args.output_dir)).decode())
+    try: print(canonical(prepare(args.source_zip, args.output_dir, args.continent)).decode())
     except (OSError, ValueError, zipfile.BadZipFile) as error: parser.exit(2, f"prepare_world_areas: {error}\n")
 
 

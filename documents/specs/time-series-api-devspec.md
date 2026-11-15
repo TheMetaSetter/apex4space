@@ -1482,3 +1482,99 @@ The map is EPSG:6933 and GeoJSON remains EPSG:4326. Run instructions are in
 
 Terminology: `OpenLayers map` replaces `Leaflet map` in the current frontend
 contract. Database tables and API object names are unchanged.
+
+### Area folders — 2026-11-15
+
+Store new schema-2 releases in `data/areas/<area>/<release>/`.
+The original nine-file release moved from `data/global-releases/firms-v2`
+to `data/areas/mixed-areas/firms-v2`. Its inputs include a global sample,
+so it is not labeled as South America only. The shared schema-1 pilot
+database and its release metadata moved together into
+`data/areas/mixed-areas/legacy-pilot/`.
+Storage settings own the selected paths; the API still reads one schema-2
+release at a time. Folder names do not filter input coordinates.
+No database content, release ID, schema, or runtime object name changed.
+
+### Frism three-frame MVP — 2026-11-15
+
+The current app selects the existing North America schema-2 release. The
+catalog builder now takes `--continent` (default South America for compatibility)
+and can prepare North America with its country members. Catalog validation
+checks the declared membership; invalid source geometry is still rejected.
+Explore, Compare and Discover reuse OpenLayers 10.11.0 and WebGLVector cells.
+Discover is a daily calendar; it does not claim harmonization or unusual activity.
+Only the Compare stats panel scrolls. Narrow displays use tabs and year paging.
+
+New POST interfaces: `/v2/hotspots/years/query` (year, offset and page_size plus
+release/area) and `/v2/chat/query` (question, selected area/years/date, recent
+history). Annual aggregation and local chat share `app.insights` read-only
+queries. The map shows unique cells colored by active days; calendar counts
+are daily unique cells. Total cell-days is the sum of daily counts. Outside-
+release days are null, and all available days retain unknown coverage.
+Original database bytes and importer semantics are unchanged. Derived yearly
+results stay in a bounded memory cache. Future Parquet remains deferred.
+
+Local Ollama `gemma4:e2b` returns validated structured intents; fixed functions
+retrieve data, then the model explains results. Exact data and provenance are
+returned separately. There is no model-generated SQL or cloud fallback.
+Terminology: existing runtime objects are unchanged; YearQuery, ChatQuery and
+DataIntent are new request types owned by app.insights.
+
+### Checked Parquet reader — 2026-11-15
+
+The current website selects the checked country/grid/day Parquet release.
+`StorageSettings.data_format` is new: sqlite (default, compatible) or parquet.
+`global_release_path` is unchanged: it owns selected release metadata. New
+schema-3 manifests point to immutable external Parquet files; schema-2 SQLite
+releases retain their original content and logical hashes. North America
+membership uses saved country codes from the validated catalog. Parquet source
+membership is detection-within-country before grid, not cell-center selection.
+The producer excludes unmatched/boundary points and coordinates beyond its
+Mercator limits. Country source-file identity and raw rejection counts are unknown.
+
+`app.parquet_data` is a new read adapter behind existing daily, summary, year
+and chat query functions. It reads relevant monthly files with DuckDB and
+parameter binding; source files are never modified. Continent membership is
+DISTINCT (date, grid_id). Country totals cannot simply be added. Source grid
+rows/columns are preserved on a zero-origin 10,000m EPSG:3857 lattice. WGS84
+corners are clipped only at world display limits; the map still uses EPSG:6933.
+This is not an equal-area grid and must not be merged with prior cell IDs.
+`grid_id` maps to the existing API `cell_id` only under its new grid_version.
+GridProvenance is a new additive response type; existing endpoint paths and
+request types are unchanged. Parquet release IDs bind file hashes, grid rules
+and continent membership; a snapshot hash is not a logical SQLite table hash.
+
+Per-query file identity checks reject changed/missing source files. A six-entry
+aggregate cache holds no copied Parquet rows or full geometry sets. At most two
+scans run concurrently, each with 512 MiB memory and a 30-second SQL timeout.
+The prepared release has a full per-month validation report and file hashes.
+The original SQLite settings are retained in config/settings-sqlite.json.
+
+### Global range release — 2026-11-15
+
+A new DateRange request owns inclusive start_date/end_date, offset/page_size,
+optional WGS84 viewport bbox and include_geometry. `/v2/hotspots/ranges/query`
+serves whole-area metrics plus optional viewport cell pages. Single-day and
+yearly Parquet requests delegate to shared `_range_counts`; existing legacy
+summary end-date semantics and limits are unchanged. Long periods combine
+disjoint yearly counts and daily maps, avoiding a single huge DISTINCT state.
+There are three cached aggregates; SQL still has a bounded memory/time budget.
+World overview defers detailed shapes until zoom 2.5. Loaded map cell counts
+are distinct from full selected-area totals. Compare requests are independent;
+overlapping dates remain in both. Average daily cells uses selected UTC days,
+not observed satellite coverage. ChatRange lists reuse the same range functions.
+
+A new global lookup catalog separates code membership/name aliases from optional
+valid display outlines. All 230 source codes are mapped; continent groups use
+Natural Earth country-level membership. World includes all source codes. Egypt
+has no published display outline because its source geometry is invalid; country
+queries still use its saved code. No polygons are repaired or source rows
+reclassified. Custom drawn areas remain deferred.
+
+Terminology mapping: existing area IDs, grid_version, cell_id, source snapshot,
+daily and yearly requests are unchanged. DateRange and ChatRange are new public
+request objects, owned by app.ranges and app.insights. The global name catalog
+is a new lookup format owned by app.areas; its optional display geometry is not
+an exact spatial-filter object. UI year-a/year-b IDs remain year shortcuts;
+range A/B now own comparison dates. The source and release IDs are unchanged;
+only selected release metadata folder and catalog settings move to World scope.

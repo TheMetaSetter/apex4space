@@ -333,6 +333,7 @@ class StorageSettings(ContractModel):
     cell_releases_path: Path | None = None
     global_release_path: Path | None = None
     world_areas_path: Path | None = None
+    data_format: Literal["sqlite", "parquet"] = "sqlite"
 
 class DownloadSettings(ContractModel):
     sources: tuple[str, ...]

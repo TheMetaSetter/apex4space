@@ -20,6 +20,8 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import analysis, storage
+from app.ranges import query_range
+from app.insights import query_year, query_chat
 from app.areas import load_world_areas
 from app.area_queries import (HotspotResponse, SummaryResponse,
     query_hotspots as query_area_hotspots, query_summaries)
@@ -33,7 +35,7 @@ from app.models import (
     ReleaseSummary, Settings, load_settings, selection_geometry,
 )
 
-_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/hotspots/cells/query", "/v1/exports", "/v2/hotspots/query", "/v2/hotspots/summaries/query"}
+_POST_PATHS = {"/v1/analysis", "/v1/hotspots/query", "/v1/hotspots/cells/query", "/v1/exports", "/v2/hotspots/query", "/v2/hotspots/summaries/query", "/v2/hotspots/years/query", "/v2/chat/query", "/v2/hotspots/ranges/query"}
 _METRICS = (
     MetricDefinition(name="observed_hotspot_count", unit="detections",
         definition="Count selected source detections.", allowed_aggregations=("day", "month")),
@@ -67,6 +69,9 @@ def create_app(settings_path: Path | None = None) -> FastAPI:
     app.add_exception_handler(ApiError, handle_api_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(Exception, handle_server_error)
+    app.add_api_route("/v2/hotspots/years/query", query_year, methods=["POST"], operation_id="query_year")
+    app.add_api_route("/v2/hotspots/ranges/query", query_range, methods=["POST"], operation_id="query_range")
+    app.add_api_route("/v2/chat/query", query_chat, methods=["POST"], operation_id="query_chat")
     app.add_api_route("/health/live", health_live, methods=["GET"], response_model=HealthResponse, operation_id="health_live")
     app.add_api_route("/health/ready", health_ready, methods=["GET"], response_model=HealthResponse, operation_id="health_ready")
     app.add_api_route("/v1/releases", list_releases, methods=["GET"], response_model=tuple[ReleaseSummary, ...], operation_id="list_releases")
@@ -327,6 +332,8 @@ class RequestGuard:
         await self.app(scope, receive, send_with_id)
 
     def _take_rate_slot(self) -> int | None:
+        if os.environ.get('FRISM_CLOUD') == '1':
+            return None  # The shared Vercel Firewall owns cloud request rates.
         now = time.monotonic()
         while self.requests and now - self.requests[0] >= 60:
             self.requests.popleft()

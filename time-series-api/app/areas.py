@@ -21,6 +21,8 @@ def normalize_name(value):
 
 def load_world_areas(directory):
     directory = Path(directory)
+    if (directory / 'area-catalog.json').exists():
+        return _load_global(directory)
     names = ("world-areas.geojson", "area-aliases.json", "continent-membership.json")
     raw = {name: (directory / name).read_bytes() for name in names}
     manifest = json.loads((directory / "world-areas-manifest.json").read_bytes())
@@ -45,8 +47,8 @@ def load_world_areas(directory):
     members = json.loads(raw[names[2]])
     if any(area_id not in areas for ids in members.values() for area_id in ids):
         raise ValueError("continent membership refers to an unknown area")
-    if set(areas) != {"country:VNM", "continent:south-america", *members["south-america"]}:
-        raise ValueError("area catalog scope is not Viet Nam and South America")
+    if not members or set(members) - {"south-america", "north-america"} or set(areas) != {"country:VNM", *[f"continent:{name}" for name in members], *[item for values in members.values() for item in values]}:
+        raise ValueError("area catalog scope does not match declared members")
     return {"version": manifest["catalog_version"], "areas": areas, "aliases": aliases}
 
 
@@ -74,3 +76,23 @@ def matching_cells(connection, area):
                 seen.add(key)
                 if geometry.covers(Point(row[2], row[3])):
                     yield row
+
+
+def _load_global(directory):
+    raw=(directory/'area-catalog.json').read_bytes()
+    digest=hashlib.sha256(raw).hexdigest()
+    if digest!=(directory/'catalog-sha256.txt').read_text().strip():
+        raise ValueError('Global catalog checksum mismatch')
+    data=json.loads(raw)
+    for area in data['areas'].values():
+        if not area['country_codes']:
+            raise ValueError('Empty country membership')
+        geometry=area['geometry']
+        if geometry is not None:
+            geometry=shape(geometry)
+            if not geometry.is_valid or geometry.geom_type not in {'Polygon','MultiPolygon'}:
+                raise ValueError('Invalid global display geometry')
+        area['geometry']=geometry
+    if any(area_id not in data['areas'] for ids in data['aliases'].values() for area_id in ids):
+        raise ValueError('Unknown area alias')
+    return {'version':'global-'+digest[:16],**data}

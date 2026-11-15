@@ -5,13 +5,14 @@ from datetime import date, timedelta
 import hashlib
 import hmac
 import json
+import os
 import re
 import sqlite3
 import time
 from pathlib import Path
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, StrictInt, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, StrictInt, Field, field_validator, model_validator
 from shapely import intersects_xy
 
 from app.areas import AreaError, resolve_area_name
@@ -24,6 +25,12 @@ class _Query(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     release_id: str
     area_name: str
+
+    @model_validator(mode='after')
+    def cloud_page_limit(self):
+        if os.environ.get('FRISM_CLOUD') == '1' and getattr(self, 'page_size', 1) > 1000:
+            raise ValueError('Cloud map pages contain at most 1000 cells.')
+        return self
 
     @field_validator("release_id")
     @classmethod
@@ -74,7 +81,18 @@ class CellFeature(BaseModel):
     geometry: dict
 
 
-class HotspotResponse(BaseModel):
+class GridProvenance(BaseModel):
+    source_projection: str | None = None
+    cell_size_m: int | None = None
+    membership_rule: str | None = None
+    equal_area: bool | None = None
+    metric: str | None = None
+    source_dates: list[str] = Field(default_factory=list)
+    grid_version: str | None = None
+    geometry_rule: str | None = None
+
+
+class HotspotResponse(GridProvenance):
     release_id: str
     area_id: str
     area_name: str
@@ -98,7 +116,7 @@ class DailySummary(BaseModel):
     input_state: str
 
 
-class SummaryResponse(BaseModel):
+class SummaryResponse(GridProvenance):
     release_id: str
     area_id: str
     area_name: str
@@ -136,7 +154,7 @@ def _database(settings, release_id, seconds=5):
 
 
 def _cursor(secret, manifest, area, catalog, query, last=None):
-    value = {"v": 2, "release_id": manifest["release_id"], "logical_sha256": manifest["logical_sha256"],
+    value = {"v": 2, "release_id": manifest["release_id"], "snapshot_sha256": manifest.get("snapshot_sha256") or manifest["logical_sha256"],
         "area_id": area["id"], "catalog_version": catalog["version"], "date": query.date.isoformat(),
         "grid_versions": sorted(manifest.get("memberships_by_grid", {})),
         "page_size": query.page_size, "last": last}
@@ -152,7 +170,7 @@ def _decode_cursor(token, secret, manifest, area, catalog, query):
         signature = base64.urlsafe_b64decode(signed + "=" * (-len(signed) % 4))
         expected = hmac.new(secret, raw, hashlib.sha256).digest()
         value = json.loads(raw)
-        expected_payload = {"v": 2, "release_id": manifest["release_id"], "logical_sha256": manifest["logical_sha256"],
+        expected_payload = {"v": 2, "release_id": manifest["release_id"], "snapshot_sha256": manifest.get("snapshot_sha256") or manifest["logical_sha256"],
             "area_id": area["id"], "catalog_version": catalog["version"], "date": query.date.isoformat(),
             "grid_versions": sorted(manifest.get("memberships_by_grid", {})), "page_size": query.page_size}
         if (set(value) != {*expected_payload, "last"} or not hmac.compare_digest(signature, expected)
@@ -212,6 +230,9 @@ def _daily_counts(connection, area, release_id, start, end):
 
 
 def query_hotspots(query: HotspotQuery, request: Request):
+    if request.app.state.settings.storage.data_format == "parquet":
+        from app.parquet_data import daily
+        return daily(query, request)
     settings = request.app.state.settings; catalog = request.app.state.world_areas
     if catalog is None: raise ApiError(503, "DATABASE_UNAVAILABLE", "The area catalog is unavailable.")
     area = _area(catalog, query); connection, manifest = _database(settings, query.release_id)
@@ -248,6 +269,9 @@ def query_hotspots(query: HotspotQuery, request: Request):
 
 
 def query_summaries(query: SummaryQuery, request: Request):
+    if request.app.state.settings.storage.data_format == "parquet":
+        from app.parquet_data import summaries
+        return summaries(query, request)
     settings = request.app.state.settings; catalog = request.app.state.world_areas
     if catalog is None: raise ApiError(503, "DATABASE_UNAVAILABLE", "The area catalog is unavailable.")
     area = _area(catalog, query); connection, manifest = _database(settings, query.release_id)

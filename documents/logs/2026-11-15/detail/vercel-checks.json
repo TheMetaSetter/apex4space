@@ -1,0 +1,26 @@
+{
+  "release_id": "50589b4e46f939cc682ffb4e6bf940fad69e95e25a1a908a1074ab675adad721",
+  "source_files": 313,
+  "blob_bytes": 802362812,
+  "deploy_source_bytes": 7895861,
+  "linux_dependency_bytes": 176450856,
+  "tests_passed": 63,
+  "catalog_response_bytes": 1529196,
+  "largest_tested_map_page_bytes": 437568,
+  "common_calendars": 54,
+  "peak_rss_mb": 274.7,
+  "full_range_timeout_seconds": 50.53,
+  "full_range_download_bytes_before_timeout": 112993826,
+  "preview_rate_test": {
+    "accepted": 10,
+    "limited_http_429": 14
+  },
+  "chat_mode": "database_summary",
+  "paid_services_added": false,
+  "deploy_source_sha256": "eb3e4290829c0e2bcf38131478c5beb5ac5a329ad476f51795a73582a82026c3",
+  "production_deployment_id": "dpl_F13dyhkqAQDoA35wqFSUXfSnjJwh",
+  "public_url": "https://apex4space.vercel.app",
+  "public_checks_passed": true,
+  "firewall_version": 3,
+  "api_requests_per_ip_per_minute": 600
+}
