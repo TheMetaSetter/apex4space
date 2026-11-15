@@ -6,6 +6,8 @@ Live site: https://apex4space.vercel.app
 
 The small web app and Python API run on Vercel. The 313 monthly Parquet files live in one public Blob store. They use 802,362,812 bytes. The API checks each downloaded file, reads one month at a time, and removes it after use.
 
+The same checked Parquet files are also in the GitHub repository under `time-series-api/data/areas/world/parquet-v1/monthly/` for local use. The hosted API continues to read Vercel Blob.
+
 Chat uses exact database summaries for now. It explains hotspots, finds the busiest month in the selected range, and compares two selected ranges. Other questions receive the selected data summary. Local Ollama still works in the local app.
 
 ## Update the app

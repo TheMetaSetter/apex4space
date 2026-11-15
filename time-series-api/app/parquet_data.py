@@ -20,6 +20,13 @@ GRID_META = {'grid_version': GRID_VERSION, 'source_projection': 'EPSG:3857',
 _QUERY_SLOTS = threading.BoundedSemaphore(2)
 
 
+@lru_cache(maxsize=512)
+def _source_hash(path, size, modified_ns):
+    """Check a relocated file once; repeat only when its size or time changes."""
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
 def manifest_for(settings, release_id=None):
     try:
         directory = settings.storage.global_release_path
@@ -39,14 +46,18 @@ def manifest_for(settings, release_id=None):
             for item in manifest['sources']:
                 blob_url(manifest, item)
             return manifest
-        root = Path(manifest['source_root']).resolve(strict=True)
+        root = (directory / manifest['source_root']).resolve(strict=True)
         for item in manifest['sources']:
             path = (root / item['path']).resolve(strict=True)
             if not path.is_relative_to(root):
                 raise ValueError('Source escapes the release root')
             stat = path.stat()
-            if stat.st_size != item['bytes'] or stat.st_mtime_ns != item['mtime_ns']:
+            if stat.st_size != item['bytes']:
                 raise ValueError('Source changed after validation')
+            if stat.st_mtime_ns != item['mtime_ns'] and _source_hash(path, stat.st_size, stat.st_mtime_ns) != item['sha256']:
+                raise ValueError('Source hash changed after validation')
+        # The checked source can travel with the repository; queries use its resolved path.
+        manifest['source_root'] = str(root)
         return manifest
     except ApiError:
         raise
@@ -173,6 +184,7 @@ def _range_counts(directory, release_id, area_id, start_text, end_text, country_
     if manifest.get('storage') == 'vercel-blob':
         from app.cloud_data import range_counts
         return range_counts(manifest, start, end, codes)
+    manifest['source_root'] = str((Path(directory) / manifest['source_root']).resolve())
     if (end-start).days>366:
         return _long_range(directory,release_id,area_id,start,end,country_codes)
     with _read_months(manifest, start, end) as db:

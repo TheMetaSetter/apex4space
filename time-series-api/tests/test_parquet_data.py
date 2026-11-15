@@ -1,6 +1,7 @@
 """Verify Parquet semantics independently of the existing equal-area database."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -34,6 +35,8 @@ def parquet_client(tmp_path, monkeypatch):
     producer = tmp_path / 'producer.txt'; producer.write_text('grid formula fixture')
     publish(root, release, catalog, producer)
     manifest = json.loads((release / 'manifest.json').read_text())
+    manifest['source_root'] = '../data'
+    (release / 'manifest.json').write_text(json.dumps(manifest))
     settings = json.loads((Path(__file__).parents[1] / 'config/settings.json').read_text())
     settings['storage'].update(data_format='parquet', global_release_path=str(release), world_areas_path=str(catalog))
     settings['api']['allowed_hosts'] = ['testserver']
@@ -103,6 +106,17 @@ def test_changed_source_is_rejected_even_after_caching(parquet_client):
     body = {'release_id':release,'area_name':'North America','year':2024}
     assert client.post('/v2/hotspots/years/query',json=body).status_code == 200
     path.write_bytes(path.read_bytes()+b'changed')
+    assert client.post('/v2/hotspots/years/query',json=body).status_code == 503
+
+
+def test_git_checkout_time_uses_source_hash(parquet_client):
+    client, release, path = parquet_client
+    before = path.stat()
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+    body = {'release_id':release,'area_name':'North America','year':2024}
+    assert client.post('/v2/hotspots/years/query',json=body).status_code == 200
+    content = path.read_bytes()
+    path.write_bytes(bytes([content[0] ^ 1]) + content[1:])
     assert client.post('/v2/hotspots/years/query',json=body).status_code == 503
 
 

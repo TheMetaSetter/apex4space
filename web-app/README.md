@@ -97,8 +97,9 @@ The supplied cream Frism logo is used locally.
 
 ## Current Parquet release — 15 November 2026
 
-Frism now reads `/Users/macbookofjimmy/hieu/apex4space/output/fire_grid_daily`
-directly with DuckDB. Files are not copied or changed. Metadata and the full
+Frism now reads the checked Parquet copy in
+`time-series-api/data/areas/world/parquet-v1/monthly` with DuckDB. Its hashes
+match the original files. Metadata and the full
 validation report are in `time-series-api/data/areas/north-america/parquet-v1/`.
 313 monthly files hold 150,615,549 country/cell/day rows, from 2000-11-01
 through 2026-11-11. Every file passed duplicate, schema, date-partition,

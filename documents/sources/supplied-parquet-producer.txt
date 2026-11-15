@@ -1,0 +1,297 @@
+
+# ==========================================
+# CONFIGURATION
+# ==========================================
+
+INPUT_DIR = Path("data/raw")
+COUNTRY_FILE = Path("data/boundaries/countries.geojson")
+
+OUTPUT_DIR = Path("output1/fire_grid_daily")
+TEMP_DIR = Path("output1/temp")
+
+START_DATE = "2000-11-01"
+END_DATE = "2026-11-11"
+
+GRID_SIZE = 10_000
+EARTH_RADIUS = 6378137.0
+MAX_LAT = 85.0511287798066
+
+CHUNK_SIZE = 250_000
+
+# Tên cột mã quốc gia trong GeoJSON.
+COUNTRY_CODE_COLUMN = "ADM0_A3"
+
+
+# ==========================================
+# 1. LOAD COUNTRY BOUNDARIES
+# ==========================================
+
+def load_countries():
+    countries = gpd.read_file(COUNTRY_FILE)
+
+    if countries.crs is None:
+        raise ValueError("Country boundaries must have a CRS")
+
+    countries = countries.to_crs("EPSG:4326")
+
+    if COUNTRY_CODE_COLUMN not in countries.columns:
+        raise ValueError(
+            f"Missing column: {COUNTRY_CODE_COLUMN}"
+        )
+
+    countries = countries[
+        [COUNTRY_CODE_COLUMN, "geometry"]
+    ].copy()
+
+    countries = countries.rename(
+        columns={COUNTRY_CODE_COLUMN: "country_code"}
+    )
+
+    countries = countries[
+        countries.geometry.notna()
+        & ~countries.geometry.is_empty
+    ]
+
+    return countries
+
+# ==========================================
+# 2. ASSIGN COUNTRY TO EACH DETECTION
+# ==========================================
+
+def assign_country(df, countries):
+
+    df = df.copy()
+
+    df["latitude"] = pd.to_numeric(
+        df["latitude"], errors="coerce"
+    )
+
+    df["longitude"] = pd.to_numeric(
+        df["longitude"], errors="coerce"
+    )
+
+    df["acq_date"] = pd.to_datetime(
+        df["acq_date"], errors="coerce", format="mixed"
+    ).dt.date
+
+    # Remove invalid coordinates and dates
+    df = df.dropna(
+        subset=["latitude", "longitude", "acq_date"]
+    )
+
+    df = df[
+        df["latitude"].between(-MAX_LAT, MAX_LAT)
+        & df["longitude"].between(-180, 180)
+    ].copy()
+
+    if df.empty:
+        return df.assign(country_code=pd.Series(dtype="object"))
+
+    points = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(
+            df["longitude"],
+            df["latitude"]
+        ),
+        crs="EPSG:4326"
+    )
+
+    # A detection belongs to the country polygon
+    # containing its coordinate.
+    joined = gpd.sjoin(
+        points,
+        countries,
+        how="inner",
+        predicate="within"
+    )
+
+    return joined.drop(
+        columns=["geometry", "index_right"],
+        errors="ignore"
+    )
+
+
+# ==========================================
+# 3. ASSIGN EPSG:3857 GRID
+# ==========================================
+
+def assign_grid(df):
+
+    df = df.copy()
+
+    lat_rad = np.radians(df["latitude"].to_numpy())
+    lon_rad = np.radians(df["longitude"].to_numpy())
+
+    x = EARTH_RADIUS * lon_rad
+
+    y = EARTH_RADIUS * np.log(
+        np.tan(np.pi / 4 + lat_rad / 2)
+    )
+
+    # floor is important for negative coordinates
+    cols = np.floor(x / GRID_SIZE).astype(np.int64)
+    rows = np.floor(y / GRID_SIZE).astype(np.int64)
+
+    df["grid_id"] = (
+        "E3857_10K_R"
+        + pd.Series(rows, index=df.index).astype(str)
+        + "_C"
+        + pd.Series(cols, index=df.index).astype(str)
+    )
+
+    return df
+
+
+# ==========================================
+# 4. PROCESS CSV FILES IN CHUNKS
+# ==========================================
+
+def process_csv_files(countries):
+
+    csv_files = glob.glob(
+        str(INPUT_DIR / "**" / "*.csv"),
+        recursive=True
+    )
+
+    if not csv_files:
+        raise FileNotFoundError("No CSV files found")
+
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    chunk_number = 0
+
+    for csv_file in csv_files:
+
+        print(f"Processing: {csv_file}")
+
+        for chunk in pd.read_csv(
+            csv_file,
+            chunksize=CHUNK_SIZE,
+            low_memory=False
+        ):
+
+            # Keep only required columns
+            required_columns = [
+                "latitude",
+                "longitude",
+                "acq_date"
+            ]
+
+            chunk = chunk[required_columns].copy()
+
+            # Parse date and filter requested period
+            chunk["acq_date"] = pd.to_datetime(
+                chunk["acq_date"],
+                errors="coerce",
+                format="mixed"
+            )
+
+            chunk = chunk[
+                chunk["acq_date"].between(
+                    START_DATE, END_DATE
+                )
+            ].copy()
+
+            if chunk.empty:
+                continue
+
+            chunk["acq_date"] = chunk["acq_date"].dt.date
+
+            # Country attribution
+            chunk = assign_country(chunk, countries)
+
+            if chunk.empty:
+                continue
+
+            # Grid assignment
+            chunk = assign_grid(chunk)
+
+            # Keep only required output columns
+            result = chunk[
+                ["acq_date", "country_code", "grid_id"]
+            ].drop_duplicates()
+
+            output_file = (
+                TEMP_DIR / f"chunk_{chunk_number:08d}.parquet"
+            )
+
+            result.to_parquet(
+                output_file,
+                index=False,
+                compression="zstd"
+            )
+
+            chunk_number += 1
+
+    print(f"Generated {chunk_number} temporary files")
+
+
+# ==========================================
+# 5. MERGE, DEDUPLICATE AND EXPORT PARQUET
+# ==========================================
+
+def export_parquet():
+
+    temp_files = list(TEMP_DIR.glob("*.parquet"))
+
+    if not temp_files:
+        raise RuntimeError("No valid detections found")
+
+    if OUTPUT_DIR.exists():
+        shutil.rmtree(OUTPUT_DIR)
+
+    OUTPUT_DIR.parent.mkdir(parents=True, exist_ok=True)
+
+    con = duckdb.connect()
+
+    temp_pattern = str(TEMP_DIR / "*.parquet")
+    output_path = OUTPUT_DIR.as_posix().replace("'", "''")
+
+    query = f"""
+        COPY (
+            SELECT DISTINCT
+                CAST(acq_date AS DATE) AS acq_date,
+                country_code,
+                grid_id,
+                YEAR(acq_date) AS year,
+                MONTH(acq_date) AS month
+            FROM read_parquet('{temp_pattern}')
+        )
+        TO '{output_path}'
+        (
+            FORMAT PARQUET,
+            PARTITION_BY (year, month),
+            COMPRESSION ZSTD
+        );
+    """
+
+    con.execute(query)
+
+    con.close()
+
+    print(f"Dataset saved to: {OUTPUT_DIR}")
+
+
+# ==========================================
+# MAIN
+# ==========================================
+
+def main():
+
+    print("Loading country boundaries...")
+    countries = load_countries()
+
+    print("Processing CSV files...")
+    process_csv_files(countries)
+
+    print("Exporting final Parquet dataset...")
+    export_parquet()
+
+    # Remove intermediate files after successful export
+    shutil.rmtree(TEMP_DIR, ignore_errors=True)
+
+    print("Preprocessing completed!")
+
+
+if __name__ == "__main__":
+    main()

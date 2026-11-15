@@ -41,7 +41,9 @@ if __name__ == '__main__':
                 environment[key] = shlex.split(value)[0] if value else ''
     environment.pop('VERCEL_OIDC_TOKEN', None)
     environment.pop('BLOB_STORE_ID', None)
-    manifest = json.loads((ROOT / 'time-series-api/data/areas/world/parquet-v1/manifest.json').read_text())
+    release = ROOT / 'time-series-api/data/areas/world/parquet-v1'
+    manifest = json.loads((release / 'manifest.json').read_text())
+    manifest['source_root'] = str((release / manifest['source_root']).resolve())
     if sum(item['bytes'] for item in manifest['sources']) > 900_000_000:
         raise ValueError('The release exceeds the free storage budget')
     items = manifest['sources'][:1] if arguments.first else manifest['sources']

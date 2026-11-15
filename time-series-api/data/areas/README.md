@@ -19,6 +19,11 @@ The existing databases contain more than one area, so they stay together
 under `mixed-areas`. Moving a folder does not filter its data.
 Original CSV files stay in their input folder.
 
+The current global Parquet release is under `world/parquet-v1/`. Its `monthly/`
+folder contains 313 checked files. The manifest uses a relative source path,
+so a cloned repository can read these files locally. The hosted app uses its
+matching Vercel Blob copy.
+
 For example, run from the repository root with South America CSVs:
 
 ```sh
