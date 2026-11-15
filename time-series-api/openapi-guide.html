@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A simple guide for web developers on how the time-series API and web app work together.">
+  <title>Time-series API and web app guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172b3a;
+      --muted: #536878;
+      --line: #d5e0e7;
+      --paper: #ffffff;
+      --page: #f2f6f8;
+      --blue: #126b82;
+      --pale: #e6f3f5;
+      --code: #102735;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 38px max(22px, calc((100% - 980px) / 2));
+      background: var(--code);
+      color: #f4fbff;
+    }
+    header p { max-width: 720px; margin: 10px 0 0; color: #c4d6df; }
+    main { width: min(980px, calc(100% - 32px)); margin: 26px auto 60px; }
+    section, .notice {
+      margin: 16px 0;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--paper);
+    }
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); }
+    h2 { margin: 0 0 12px; font-size: 1.4rem; }
+    h3 { margin: 22px 0 8px; font-size: 1.08rem; }
+    p { margin: 8px 0; }
+    a { color: var(--blue); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { overflow-wrap: anywhere; }
+    pre {
+      overflow-x: auto;
+      margin: 12px 0;
+      padding: 16px;
+      border-radius: 10px;
+      background: var(--code);
+      color: #edf8fc;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+    .notice { border-color: #a8d5dc; background: var(--pale); }
+    .label { color: var(--muted); font-size: .88rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .route-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; }
+    .route { padding: 12px; border: 1px solid var(--line); border-radius: 9px; }
+    .route code { color: var(--blue); font-weight: 700; }
+    .route p { margin-bottom: 0; color: var(--muted); }
+    .steps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .steps span { padding: 6px 10px; border-radius: 99px; background: var(--pale); color: var(--blue); font-weight: 650; }
+    li { margin: 5px 0; }
+    footer { color: var(--muted); font-size: .9rem; text-align: center; }
+    @media (max-width: 560px) {
+      header { padding-top: 28px; padding-bottom: 28px; }
+      section, .notice { padding: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="label">Web developer handoff</p>
+    <h1>Time-series API</h1>
+    <p>This page explains the requests and replies in the generated OpenAPI file.
+      It covers the local pilot and the separate all-date schema-2 release.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="web-flow">
+      <h2 id="web-flow">Cách trang web và API hoạt động cùng nhau</h2>
+      <p>Trang web (web app) nhận thao tác của người dùng, gửi yêu cầu (request) đến API, rồi dùng dữ liệu trả về (response) để cập nhật bản đồ và biểu đồ. OpenAPI mô tả các đường dẫn (routes), trường dữ liệu và kiểu dữ liệu mà web app cần gửi hoặc nhận.</p>
+      <ol>
+        <li>Khi mở trang, gọi <code>GET /v1/releases</code> để lấy các bộ dữ liệu có thể dùng (releases). Dùng thông tin này để điền lựa chọn ngày, vùng, chỉ số và nền tảng.</li>
+        <li>Khi người dùng chọn vùng và ngày, lưu lựa chọn đó làm trạng thái truy vấn. Cell route nhận một <code>area_id</code> đã chuẩn bị hoặc một <code>bbox</code> nằm bên trong vùng chuẩn bị. Analysis và legacy point routes vẫn nhận hình chữ nhật.</li>
+        <li>Với release đã xử lý, gọi <code>POST /v1/hotspots/cells/query</code> để lấy đa giác ô hotspot và số đếm. Analysis và <code>POST /v1/hotspots/query</code> dùng các release legacy có dữ liệu điểm.</li>
+        <li>Chỉ thay dữ liệu trên màn hình sau khi phản hồi thuộc truy vấn hiện tại đã về. Nếu người dùng đổi vùng hoặc ngày, hủy yêu cầu cũ (cancel stale request) và xóa điểm cũ để tránh hiện dữ liệu sai vùng.</li>
+        <li>Nếu có trang tiếp theo, gửi <code>next_cursor</code> cùng đúng các trường truy vấn cũ. Không tự sửa cursor.</li>
+        <li>Khi người dùng tải xuống, gọi <code>POST /v1/exports</code> với cùng lựa chọn. Dùng tên tệp từ <code>Content-Disposition</code>.</li>
+      </ol>
+      <p>API sở hữu việc kiểm tra đầu vào (input validation), lọc dữ liệu, phân trang (pagination) và tạo tệp. Trang web sở hữu cách người dùng chọn dữ liệu và cách hiển thị kết quả. Trình duyệt không được chứa khóa FIRMS hoặc khóa ký cursor.</p>
+      <h3>Gợi ý cho phần web</h3>
+      <ul>
+        <li>Dùng một đối tượng truy vấn chung (shared query object) cho biểu đồ, bản đồ và tải xuống để các phần dùng cùng vùng, ngày, release và nền tảng.</li>
+        <li>Trong OpenLayers, đổi bbox từ [west, south, east, north] sang extent của bản đồ nếu cần. GeoJSON dùng kinh độ trước vĩ độ; cell route trả đa giác, còn legacy point route trả điểm.</li>
+        <li>Phân biệt số 0 với <code>null</code>. Số 0 là kết quả đã biết; <code>null</code> nghĩa là chưa có giá trị dùng được. Hiển thị trạng thái đi kèm như <code>missing</code> hoặc <code>not_validated</code>.</li>
+        <li>Kiểm tra HTTP status trước khi đọc kết quả thành công. Khi có lỗi, hiển thị thông báo ngắn và giữ <code>request_id</code> để hỗ trợ tìm lỗi.</li>
+      </ul>
+      <h3>Thuật ngữ</h3>
+      <ul>
+        <li><strong>API (Application Programming Interface):</strong> cách web app yêu cầu dữ liệu từ máy chủ.</li>
+        <li><strong>OpenAPI specification:</strong> tài liệu máy đọc được về request và response của API.</li>
+        <li><strong>Request / response:</strong> yêu cầu gửi đi / dữ liệu máy chủ trả về.</li>
+        <li><strong>Release:</strong> phiên bản dữ liệu đã được chuẩn bị để API đọc.</li>
+        <li><strong>GeoJSON:</strong> định dạng dữ liệu địa lý; cell route trả đa giác ô, còn legacy point route trả điểm detection.</li>
+        <li><strong>Cursor pagination:</strong> cách lấy danh sách dài thành nhiều trang bằng một cursor do máy chủ cấp.</li>
+        <li><strong>CORS (Cross-Origin Resource Sharing):</strong> quy tắc cho phép trang web từ một địa chỉ gọi API ở địa chỉ khác; đây không phải đăng nhập.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="user-data">
+      <h2 id="user-data">Mỗi nhóm người dùng nhận được dữ liệu gì?</h2>
+      <p>Website dùng dữ liệu từ API theo release và route. Processed release trả đa giác ô và số đếm qua <code>/v1/hotspots/cells/query</code>; các release legacy có thể trả số liệu và điểm nguồn qua các route hiện hữu.</p>
+      <h3>Người ứng cứu khẩn cấp (emergency responders)</h3>
+      <ul>
+        <li><strong>Trên bản đồ (map):</strong> processed release trả một đa giác cho mỗi ô hotspot, số đếm, selector, status và warning. Legacy release có thể trả điểm với thời gian, nền tảng, confidence hoặc FRP nếu có. GeoJSON dùng kinh độ trước vĩ độ.</li>
+        <li><strong>Trên biểu đồ (time series):</strong> giá trị <code>value</code> theo ngày hoặc tháng, đơn vị <code>unit</code>, trạng thái <code>status</code> và cảnh báo <code>warnings</code>. Có thể dùng để nhận biết nơi hoặc thời điểm có nhiều tín hiệu.</li>
+        <li><strong>Tải xuống (download):</strong> CSV chứa các quan sát trong lựa chọn hiện tại. Dùng để chia sẻ hoặc mở trong công cụ khác.</li>
+      </ul>
+      <p>Dữ liệu này giúp họ xem tín hiệu cần chú ý. Đây là phát hiện hotspot từ vệ tinh (satellite hotspot detection), không phải xác nhận hiện trường (field confirmation) hay ranh giới đám cháy (fire perimeter).</p>
+      <h3>Nhà khoa học (scientists)</h3>
+      <ul>
+        <li><strong>Kết quả phân tích (analysis result):</strong> chuỗi <code>calendar</code> có giá trị, ngày bắt đầu/kết thúc, trạng thái, độ bao phủ dữ liệu <code>coverage</code>, cảnh báo và thông tin thiếu/không kiểm định. Phản hồi cũng nêu chỉ số <code>unit</code>, phương pháp <code>method_id</code> nếu có, và vùng được dùng <code>used_area</code> nếu có.</li>
+        <li><strong>Dữ liệu điểm (point records):</strong> GeoJSON có tọa độ và thuộc tính như <code>observed_at</code>, <code>platform</code>, <code>product</code>, <code>version</code>, <code>quality</code>, <code>bands</code>, cùng mã tệp và dòng nguồn. Kết quả được chia trang bằng cursor.</li>
+        <li><strong>Tệp xuất (export):</strong> CSV cho quan sát nguồn; JSON cho kết quả phân tích. Có thể dùng các trường nguồn để kiểm tra lại dữ liệu và cách xử lý.</li>
+      </ul>
+      <p>Họ có thể lưu lựa chọn truy vấn (query parameters) để chạy lại cùng vùng, ngày, nền tảng, chỉ số và cách gộp. Cần giữ trạng thái như <code>missing</code> và <code>not_validated</code> khi diễn giải kết quả.</p>
+      <h3>Quản lý đất đai (land managers)</h3>
+      <ul>
+        <li><strong>Bản đồ khu vực (area map):</strong> cell route hiển thị đa giác ô theo một prepared area hoặc bbox và ngày; status cùng count phải hiện cạnh nhau.</li>
+        <li><strong>Tóm tắt thời gian (time summary):</strong> số liệu theo ngày hoặc tháng, trạng thái dữ liệu và cảnh báo để theo dõi thay đổi trong khu vực.</li>
+        <li><strong>Bản ghi (record):</strong> CSV của các điểm quan sát theo vùng và ngày đã chọn, để lưu hồ sơ hoặc chuyển cho nhóm.</li>
+      </ul>
+      <p>Website chỉ nhận hình chữ nhật (bounding box) trong MVP. Nếu khu vực quản lý có ranh giới đa giác (polygon boundary), người dùng chọn hình chữ nhật bao quanh khu vực. Kết quả khi đó có thể gồm điểm nằm ngoài ranh giới thật.</p>
+      <div class="notice">
+        <strong>Giới hạn chung:</strong> website trả dữ liệu trong release đã chọn và vùng/ngày được yêu cầu. Dữ liệu rỗng, thiếu, hoặc chưa được kiểm định phải hiển thị đúng trạng thái; không tự đổi thành số 0 hay kết luận về nguy cơ.
+      </div>
+    </section>
+
+    <div class="notice">
+      <strong>Start here:</strong> open the <a href="openapi.json">OpenAPI file</a>
+      to see every field and data type. This guide explains how to use it.
+      The local pilot release is available only to the locally configured app;
+      this page does not publish live data.
+    </div>
+
+    <section aria-labelledby="what">
+      <h2 id="what">What is OpenAPI?</h2>
+      <p>OpenAPI is a machine-readable list of API routes, request fields, and
+        reply fields. A web app can use it to check request shapes or make types.</p>
+      <p>The file lists eleven routes. Schema 1 serves the pilot; schema 2 serves the all-date database for Viet Nam and South America.</p>
+      <div class="steps" aria-label="Typical map flow">
+        <span>Pick a release</span><span>Ask for a summary</span>
+        <span>Load processed cell polygons</span><span>Load legacy points</span><span>Download legacy data</span>
+      </div>
+    </section>
+
+    <section aria-labelledby="routes">
+      <h2 id="routes">Routes</h2>
+      <div class="route-list">
+        <div class="route"><code>GET /health/live</code><p>Checks that the app runs.</p></div>
+        <div class="route"><code>GET /health/ready</code><p>Checks that the selected release is ready.</p></div>
+        <div class="route"><code>GET /v1/releases</code><p>Lists releases and their supported dates, areas, metrics, and platforms.</p></div>
+        <div class="route"><code>GET /v1/releases/{release_id}</code><p>Reads public details for one release.</p></div>
+        <div class="route"><code>GET /v1/metrics</code><p>Lists metric names, units, and allowed time groups.</p></div>
+        <div class="route"><code>POST /v1/analysis</code><p>Gets a summary and day or month values.</p></div>
+        <div class="route"><code>POST /v1/hotspots/query</code><p>Gets legacy source points as GeoJSON pages.</p></div>
+        <div class="route"><code>POST /v1/hotspots/cells/query</code><p>Gets processed cell polygons, count, status, and warnings for one date.</p></div>
+        <div class="route"><code>POST /v2/hotspots/query</code><p>Gets paged cell polygons for a country or continent name and one date.</p></div>
+        <div class="route"><code>POST /v2/hotspots/summaries/query</code><p>Gets daily area counts for up to 366 days.</p></div>
+        <div class="route"><code>POST /v1/exports</code><p>Downloads analysis JSON or observation CSV.</p></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="common">
+      <h2 id="common">Fields used by map requests</h2>
+      <ul>
+        <li><code>release_id</code>: the release to read. Get valid IDs from <code>/v1/releases</code>.</li>
+        <li><code>bbox</code>: a rectangle in EPSG:4326 order: <strong>west, south, east, north</strong>. Values are longitude, then latitude.</li>
+        <li><code>start_date</code> and <code>end_date</code>: dates in <code>YYYY-MM-DD</code> form. The start is included; the end is excluded.</li>
+        <li><code>platforms</code>: source platforms to include. Read allowed names from the release.</li>
+      </ul>
+      <div class="notice">
+        <strong>Selector rules:</strong> analysis and legacy point requests use a rectangle. The processed cell route accepts exactly one prepared <code>area_id</code> or a <code>bbox</code> fully contained in a prepared area; it does not accept a drawn polygon.
+      </div>
+    </section>
+
+    <section aria-labelledby="analysis">
+      <h2 id="analysis">Get a time summary</h2>
+      <p>Send a JSON body to <code>POST /v1/analysis</code>. Choose one metric and
+        group the results by day or month.</p>
+      <pre><code>{
+  "release_id": "local-release",
+  "bbox": [106, 10, 107, 11],
+  "start_date": "2024-03-01",
+  "end_date": "2024-03-03",
+  "metric": "observed_hotspot_count",
+  "aggregation": "day",
+  "platforms": ["Aqua"]
+}</code></pre>
+      <p>The reply has one <code>summary</code>, a <code>calendar</code> list,
+        and warnings. A period has a <code>status</code> and a <code>value</code>.
+        A null value means no supported value is available. Do not show it as zero.</p>
+      <ul>
+        <li><code>observed_zero</code> means the selected source has zero points.</li>
+        <li><code>missing</code> means data needed for the value is missing.</li>
+        <li><code>not_validated</code> means the release has no checked method for that estimate.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="points">
+      <h2 id="points">Load map points</h2>
+      <p>Send the shared fields and a platform list to <code>POST /v1/hotspots/query</code>.
+        The first request can omit <code>cursor</code>.</p>
+      <pre><code>{
+  "release_id": "local-release",
+  "bbox": [106, 10, 107, 11],
+  "start_date": "2024-03-01",
+  "end_date": "2024-03-03",
+  "platforms": ["Aqua"],
+  "page_size": 500
+}</code></pre>
+      <p>The legacy reply is a GeoJSON <code>FeatureCollection</code> of source points with <code>[longitude, latitude]</code> coordinates. If <code>has_more</code> is true, send <code>next_cursor</code> with the same query to get the next page.</p>
+      <p>The cursor is signed by the server. Keep it as-is. Do not change the area,
+        dates, platforms, release, or page size while using it.</p>
+    </section>
+
+    <section aria-labelledby="cell-map">
+      <h2 id="cell-map">Load processed cell polygons</h2>
+      <p>Use this route for the processed responder release. Send one prepared area or one containing bbox and one UTC day.</p>
+      <pre><code>{
+  "release_id": "responder-local-pilot-2026-09-01-v1",
+  "date": "2026-09-01",
+  "area_id": "south-america-pilot-rectangle"
+}</code></pre>
+      <p>Call <code>POST /v1/hotspots/cells/query</code>. The response contains one polygon feature per selected cell, <code>active_cell_count</code>, the requested selector, <code>status</code>, and <code>warnings</code>. GeoJSON coordinates are EPSG:4326 longitude/latitude. In OpenLayers, set <code>dataProjection: 'EPSG:4326'</code>, transform to the map view projection, and draw the cell vector layer above the basemap.</p>
+      <table><thead><tr><th>Status</th><th>Display</th></tr></thead><tbody>
+        <tr><td><code>available</code></td><td>Show polygons and count.</td></tr>
+        <tr><td><code>observed_zero</code></td><td>Show zero with the explicit zero state.</td></tr>
+        <tr><td><code>partial</code></td><td>Show known polygons/count with a partial-input warning.</td></tr>
+        <tr><td><code>missing</code></td><td>Show no polygons and a null count as missing.</td></tr>
+        <tr><td><code>coverage_unknown</code></td><td>Show polygons/count with an unknown-coverage warning.</td></tr>
+      </tbody></table>
+      <p>Visual review is pending: verify polygon placement above the basemap, count, and the distinct zero, partial, and missing states together.</p>
+    </section>
+
+    <section aria-labelledby="area-map">
+      <h2 id="area-map">Query the all-date database by area name</h2>
+      <p>The schema-2 release contains all valid rows from the nine local CSVs, from 2000-11-01 to 2026-11-11. It stores processed cell shapes, cell/day memberships, and daily totals. The backend reads no CSV file during a request.</p>
+      <p>Area names are Viet Nam (<code>VN</code>, <code>VNM</code>, <code>Vietnam</code>, <code>Viet Nam</code>, or <code>Việt Nam</code>) and <code>South America</code>. Unknown names return 404. Cell inclusion checks the center against the exact saved polygon.</p>
+      <pre><code>{
+  "release_id": "8796890e848f8a9ffb0ad255919fb7c469cdf6e0154fc50101139fd57dce6a49",
+  "area_name": "South America",
+  "date": "2026-11-11",
+  "page_size": 1000
+}</code></pre>
+      <p>Send this body to <code>POST /v2/hotspots/query</code>. The response reports 1,083 active cells. The first page returns 1,000 features; the cursor page returns 83. Both pages keep the same full count. Keep the signed cursor unchanged and send the same release, area, date, and page size.</p>
+      <p>Use <code>POST /v2/hotspots/summaries/query</code> with <code>start_date</code> and an exclusive <code>end_date</code>. A request can cover at most 366 days. Each day has a count, an input state, and <code>coverage_unknown</code>; zero does not mean no fire.</p>
+      <pre><code>{
+  "release_id": "8796890e848f8a9ffb0ad255919fb7c469cdf6e0154fc50101139fd57dce6a49",
+  "area_id": "country:VNM",
+  "area_name": "Vietnam",
+  "catalog_version": "ne-admin0-10m-5.1.1-65a8f82ad2b2b3e4",
+  "start_date": "2026-11-11",
+  "end_date": "2026-11-12",
+  "days": [{"date":"2026-11-11","active_cell_count":0,"status":"coverage_unknown","input_state":"records_present"}]
+}</code></pre>
+      <p>Features use full 10 km cell polygons in longitude/latitude GeoJSON. Leaflet sets its map CRS separately. For the EPSG:6933 view, use the plain world layer at the bottom; do not place ordinary Web Mercator tiles in that projected map. The visible Leaflet map review remains pending.</p>
+    </section>
+
+    <section aria-labelledby="download">
+      <h2 id="download">Download results</h2>
+      <p>Send the same area, date, release, and platform fields to
+        <code>POST /v1/exports</code>.</p>
+      <pre><code>{
+  "release_id": "local-release",
+  "bbox": [106, 10, 107, 11],
+  "start_date": "2024-03-01",
+  "end_date": "2024-03-03",
+  "kind": "observations",
+  "format": "csv",
+  "platforms": ["Aqua"]
+}</code></pre>
+      <ul>
+        <li>Use <code>kind: "observations"</code> and <code>format: "csv"</code> for source rows.</li>
+        <li>Use <code>kind: "analysis"</code> and <code>format: "json"</code> with <code>metric</code> and <code>aggregation</code> for a summary.</li>
+      </ul>
+      <p>The response uses <code>Content-Disposition</code> for its file name.
+        The OpenAPI response lists <code>text/csv</code> and <code>application/json</code>.</p>
+    </section>
+
+    <section aria-labelledby="errors">
+      <h2 id="errors">Handle errors</h2>
+      <p>Use the HTTP status and the stable <code>code</code> field. Show a short
+        message. Keep <code>request_id</code> so a user can report the problem.</p>
+      <pre><code>{
+  "code": "INVALID_REQUEST",
+  "message": "The request fields are invalid.",
+  "details": {"fields": []},
+  "request_id": "server-created-id"
+}</code></pre>
+      <p><strong>Schema note:</strong> the live app sends this error shape, but
+        this OpenAPI file does not yet define an <code>ErrorResponse</code> schema.
+        Ask the API owner if the error fields need a formal OpenAPI entry.</p>
+    </section>
+
+    <section aria-labelledby="security">
+      <h2 id="security">Keep the browser safe</h2>
+      <ul>
+        <li>Do not put <code>FIRMS_MAP_KEY</code> or <code>CURSOR_SECRET</code> in web code.</li>
+        <li>CORS lists allowed browser origins. It does not sign users in or protect the API from other clients.</li>
+        <li>Stop old map requests when the user changes the area or date. Clear the old cell or point layer before showing new results.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>The schema-1 pilot and schema-2 all-date release are separate. Check a release before making a request. Leaflet visual review remains pending.</p>
+    </footer>
+  </main>
+</body>
+</html>

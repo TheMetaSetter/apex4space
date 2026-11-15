@@ -205,6 +205,9 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# macOS metadata
+.DS_Store
+
 # Ruff stuff:
 .ruff_cache/
 
@@ -218,3 +221,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Prompts and other artifacts
+# prompts/
+# AGENTS.md
+# codebase_preferences.md
+# python_semantics.md
+time-series-api/notebooks/preprocess_tabular.ipynb
+documents/specs/brainstorming.md
+ref-codebases/
+# Generated time-series API data
+/time-series-api/data/service.sqlite3*
+/time-series-api/data/staging/
+/time-series-api/data/releases/
+*.sqlite3
+/.build/
+.vercel/
+.env.*

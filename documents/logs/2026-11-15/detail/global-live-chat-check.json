@@ -1,0 +1,80 @@
+{
+  "status": 200,
+  "seconds": 3.53,
+  "response": {
+    "answer": "For the period 2024-02-27 to 2024-02-29 in North America:\n\n*   **2024-02-27 to 2024-02-29:** Total cell-days is 5422.\n*   **2024-02-28 to 2024-02-29:** Total cell-days is 3366.\n\nActive cells are not fire counts, and coverage is unknown. Projected Mercator cells are not equal-area. The data is from the area North America for the dates 2024-02-27 to 2024-02-29.",
+    "data": [
+      {
+        "start_date": "2024-02-27",
+        "end_date": "2024-02-29",
+        "end_inclusive": true,
+        "selected_days": 3,
+        "unique_active_cells": 4362,
+        "total_cell_days": 5422,
+        "average_daily_active_cells": 1807.3333333333333,
+        "peak_date": "2024-02-27",
+        "peak_count": 2056,
+        "monthly_counts": {
+          "2024-02": 5422
+        }
+      },
+      {
+        "start_date": "2024-02-28",
+        "end_date": "2024-02-29",
+        "end_inclusive": true,
+        "selected_days": 2,
+        "unique_active_cells": 2947,
+        "total_cell_days": 3366,
+        "average_daily_active_cells": 1683.0,
+        "peak_date": "2024-02-29",
+        "peak_count": 1730,
+        "monthly_counts": {
+          "2024-02": 3366
+        }
+      }
+    ],
+    "sources": [
+      {
+        "release_id": "50589b4e46f939cc682ffb4e6bf940fad69e95e25a1a908a1074ab675adad721",
+        "area_id": "continent:north-america",
+        "area_name": "North America",
+        "source_dates": [
+          "2000-11-01",
+          "2026-11-11"
+        ],
+        "coverage": "unknown",
+        "metric": "active 10 km projected cells; cell-days count each cell once per UTC day",
+        "grid_version": "firms-mercator-10km-v1",
+        "source_projection": "EPSG:3857",
+        "cell_size_m": 10000,
+        "membership_rule": "detection_within_country_before_grid",
+        "equal_area": false,
+        "geometry_rule": "Nominal projected cell clipped at Mercator world edges for display.",
+        "catalog_version": "global-bc31687c01900b83",
+        "start_date": "2024-02-27",
+        "end_date": "2024-02-29"
+      },
+      {
+        "release_id": "50589b4e46f939cc682ffb4e6bf940fad69e95e25a1a908a1074ab675adad721",
+        "area_id": "continent:north-america",
+        "area_name": "North America",
+        "source_dates": [
+          "2000-11-01",
+          "2026-11-11"
+        ],
+        "coverage": "unknown",
+        "metric": "active 10 km projected cells; cell-days count each cell once per UTC day",
+        "grid_version": "firms-mercator-10km-v1",
+        "source_projection": "EPSG:3857",
+        "cell_size_m": 10000,
+        "membership_rule": "detection_within_country_before_grid",
+        "equal_area": false,
+        "geometry_rule": "Nominal projected cell clipped at Mercator world edges for display.",
+        "catalog_version": "global-bc31687c01900b83",
+        "start_date": "2024-02-28",
+        "end_date": "2024-02-29"
+      }
+    ],
+    "available": true
+  }
+}

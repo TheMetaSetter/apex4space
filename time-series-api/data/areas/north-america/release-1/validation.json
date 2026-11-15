@@ -1,0 +1,1 @@
+{"daily_count_mismatches":0,"foreign_key_violations":0,"integrity_check":"ok","logical_sha256":"41fbce72436fcfff0b71d23a2febe4e0ee149897a1d0da46b83f0e4e9812d3ed","rows_read_equals_assigned":true,"tables":["daily_hotspot_summary","hotspot_cell","hotspot_cell_day"]}

@@ -1,0 +1,88 @@
+{
+  "storage": {
+    "database_path": "data/service.sqlite3",
+    "staging_path": "data/staging",
+    "releases_path": "data/releases",
+    "cell_database_path": "data/areas/mixed-areas/legacy-pilot/processed.sqlite3",
+    "cell_releases_path": "data/areas/mixed-areas/legacy-pilot/releases",
+    "global_release_path": "data/areas/north-america/parquet-v1",
+    "world_areas_path": "config/north-america",
+    "saved_bytes_limit": 524288000,
+    "temporary_bytes_limit": 2147483648,
+    "data_format": "parquet"
+  },
+  "downloads": {
+    "sources": [
+      "VIIRS_SNPP_NRT"
+    ],
+    "bbox": [
+      106.0,
+      10.0,
+      107.0,
+      11.0
+    ],
+    "start_date": "2026-09-01",
+    "end_date": "2026-09-02",
+    "window_days": 2,
+    "provider_window_seconds": 600,
+    "transaction_limit": 5000,
+    "transaction_pause_at": 4000,
+    "timeout_seconds": 30,
+    "retry_limit": 2
+  },
+  "science": {
+    "study_areas": [
+      [
+        106.0,
+        10.0,
+        107.0,
+        11.0
+      ]
+    ],
+    "source_policy": {},
+    "type_policy": "all",
+    "confidence_policy": {},
+    "grid": {},
+    "reference_schedule": {},
+    "minimum_coverage_fraction": 0.8,
+    "method_id": null,
+    "method_version": null,
+    "random_seed": 0,
+    "repeat_count": 1,
+    "test_splits": {},
+    "matching_time_gaps_minutes": [
+      15,
+      30,
+      60,
+      120
+    ],
+    "acceptance_targets": {},
+    "rule_notes": {}
+  },
+  "api": {
+    "selected_release_id": "responder-viirs-empty-2026-09-01-v1",
+    "allowed_origins": [],
+    "allowed_hosts": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "default_page_size": 1000,
+    "maximum_page_size": 10000,
+    "query_limits": {
+      "maximum_days": 3660,
+      "maximum_baseline_years": 10,
+      "maximum_input_rows": 100000,
+      "maximum_cells": 10000,
+      "maximum_execution_seconds": 5
+    },
+    "export_limits": {
+      "maximum_rows": 10000,
+      "maximum_bytes": 8388608,
+      "maximum_execution_seconds": 5
+    },
+    "request_bytes_limit": 16384,
+    "requests_per_minute": 60,
+    "stale_after_days": 3,
+    "public_report_base_url": null
+  }
+}
