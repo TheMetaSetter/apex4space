@@ -46,6 +46,28 @@ The upstream source is [NASA FIRMS active-fire data](https://firms.modaps.eosdis
 4. **Remove repeats.** Duplicate `(UTC date, country code, cell ID)` rows are removed within chunks and again across all chunks. DuckDB writes the result as Zstandard-compressed Parquet, partitioned by year and month. The output contains the date, country code, cell ID, year, and month; it contains no raw detection row or satellite label.
 5. **Validate the release.** [`prepare_parquet.py`](time-series-api/scripts/prepare_parquet.py) checks every monthly file's schema, nulls, duplicate keys, date partition, grid ID, coordinate bounds, size, and SHA-256. The manifest binds the file hashes and grid rule to one release ID. The 313 months form a continuous sequence. See the [validation record](documents/logs/2026-11-15/detail/detail-parquet-release.md).
 
+The cleaning rules in the supplied script are:
+
+| Input or case | Rule | Saved result |
+| --- | --- | --- |
+| `acq_date` | Parse mixed date text; drop invalid dates and dates outside the configured range. Both end dates are included. | One source acquisition date per row. The script does not convert time zones. |
+| `latitude`, `longitude` | Convert to numbers; drop missing or invalid values, latitude outside ±85.0511287798066°, and longitude outside ±180°. | Coordinates are used to assign country and cell, then removed. |
+| Country boundary | Use a country polygon containing the detection point (`within`). | Three-letter country code. Unmatched points and exact boundary points are omitted. |
+| Repeated detections | Keep one row for each `(date, country code, grid ID)` across all CSV chunks. | One country/cell/day row, even if multiple detections or sensors contributed. |
+| Sensor, confidence, FRP, type, acquisition time | No filter or sensor calibration uses these fields. | These fields are not stored; they cannot be recovered from the Parquet release. |
+
+The grid calculation uses the spherical Mercator radius `R = 6,378,137 m`:
+
+```text
+x = R × radians(longitude)
+y = R × ln(tan(π/4 + radians(latitude)/2))
+column = floor(x / 10,000)
+row = floor(y / 10,000)
+grid_id = E3857_10K_R{row}_C{column}
+```
+
+The final Parquet schema is `acq_date` (date), `country_code` (text), and `grid_id` (text), plus `year` and `month` partition values. Each month must have exactly one file. Validation rejects a bad file; it does not repair, fill, or silently skip one. The release has no count of detections rejected before Parquet was written, so that loss cannot be measured from this output alone.
+
 ### How Frism answers a request
 
 ```text
@@ -91,7 +113,17 @@ Start the server and open [localhost:8000](http://127.0.0.1:8000):
 
 For local generated answers, run `ollama serve` and pull `gemma4:e2b`. The map works without Ollama. The hosted site currently uses database summaries because hosted AI is disabled.
 
-To validate a different copy of this Parquet format, run the [validator](time-series-api/scripts/prepare_parquet.py) with a new output folder and the supplied producer script. It reads source files without changing them. Point `storage.global_release_path` in [`settings.json`](time-series-api/config/settings.json) to the newly checked manifest before starting the server. The [web app guide](web-app/README.md#current-parquet-release--15-november-2026) shows the full command.
+To check every file in this clone again, choose an output folder that does not already exist and run:
+
+```sh
+.venv/bin/python time-series-api/scripts/prepare_parquet.py \
+  --input time-series-api/data/areas/world/parquet-v1/monthly \
+  --output-dir /tmp/frism-parquet-recheck \
+  --catalog time-series-api/config/north-america \
+  --producer-script documents/sources/supplied-parquet-producer.txt
+```
+
+The validator reads the source files without changing them and writes only a new manifest and validation report. It needs time to scan all 313 months. To use a different checked copy in the local app, point `storage.global_release_path` in [`settings.json`](time-series-api/config/settings.json) to its new manifest folder. The [web app guide](web-app/README.md#current-parquet-release--15-november-2026) has more details.
 
 ## API and checks
 
